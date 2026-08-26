@@ -1,0 +1,331 @@
+/* Reset & Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #0f1115;
+  --bg-card: #181b22;
+  --bg-card-header: #202530;
+  --bg-subrow: #14171d;
+  --text-primary: #f0f3f6;
+  --text-secondary: #9aa5b5;
+  --text-muted: #5e697a;
+  --border-color: #272d3a;
+  
+  --color-red-line: #da291c;
+  --color-orange-line: #ed8b00;
+  --color-blue-line: #003da5;
+  --color-green-line: #00843d;
+  --color-cr: #80276c;
+  --color-bus: #ffc72c;
+  --color-sl: #7c878e;
+  
+  --color-arriving: #00e676;
+  --color-boarding: #ffab00;
+  --color-delayed: #ff5252;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 1.5rem 2rem;
+  max-width: 1920px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1.25rem;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: 1.5rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.dashboard-title {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--bg-card);
+  padding: 0.35rem 0.8rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background-color: var(--color-arriving);
+  box-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+}
+
+.status-dot.offline {
+  background-color: var(--color-delayed);
+  box-shadow: 0 0 8px rgba(255, 82, 82, 0.6);
+}
+
+.header-right {
+  text-align: right;
+}
+
+.clock-date {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.clock-time {
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* Alerts Banner */
+.alerts-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.alert-banner {
+  background: rgba(255, 82, 82, 0.15);
+  border-left: 4px solid var(--color-delayed);
+  padding: 0.85rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: #ffcdd2;
+}
+
+/* Transit Grid */
+.transit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.loading-placeholder {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4rem 1rem;
+  font-size: 1.25rem;
+  color: var(--text-muted);
+}
+
+/* Route Card */
+.route-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+  padding: 1rem 1.25rem;
+  background-color: var(--bg-card-header);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.route-badge-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.route-pill {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.route-pill.bus {
+  color: #111111;
+}
+
+.card-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.card-body {
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  flex: 1;
+}
+
+.direction-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.direction-header {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.departures-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.departure-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-subrow);
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+}
+
+.departure-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.departure-bus-badge {
+  background-color: var(--color-bus);
+  color: #111111;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  min-width: 2rem;
+  text-align: center;
+}
+
+.departure-headsign {
+  font-size: 1.05rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.departure-train-no {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.departure-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.departure-time-clock {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.countdown-badge {
+  font-size: 1.15rem;
+  font-weight: 800;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  background-color: #272d3a;
+  color: var(--text-primary);
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.countdown-badge.arriving {
+  background-color: rgba(0, 230, 118, 0.2);
+  color: var(--color-arriving);
+  border: 1px solid var(--color-arriving);
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.countdown-badge.boarding {
+  background-color: rgba(255, 171, 0, 0.2);
+  color: var(--color-boarding);
+  border: 1px solid var(--color-boarding);
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.no-departures {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}

@@ -1,0 +1,41 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+  refresh_seconds: 20
+
+display:
+  title: "MBTA Transit Departures"
+  clock_format_24h: false
+  max_predictions_per_direction: 3
+
+routes:
+  # Subway Example: Red Line
+  - id: "red_line"
+    type: "subway"
+    route_id: "Red"
+    stop_id: "place-dwnrn"
+    name: "Downtown Crossing - Red Line"
+    directions:
+      - direction_id: 0
+        headsign: "Ashmont / Braintree (Southbound)"
+      - direction_id: 1
+        headsign: "Alewife (Northbound)"
+
+  # Commuter Rail Example: Fitchburg Line at North Station
+  - id: "fitchburg_line"
+    type: "commuter_rail"
+    route_id: "CR-Fitchburg"
+    stop_id: "place-north"
+    name: "North Station - Fitchburg Line"
+    directions:
+      - direction_id: 0
+        headsign: "Fitchburg (Outbound)"
+      - direction_id: 1
+        headsign: "North Station (Inbound)"
+
+  # Bus Example: Harvard Square
+  - id: "harvard_buses"
+    type: "bus"
+    stop_id: "place-harsq"
+    name: "Harvard Square - Buses"
+    route_filter: ["1", "66", "77"]
