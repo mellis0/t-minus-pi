@@ -1,5 +1,7 @@
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from time import monotonic
 from typing import Any, Dict, List, Optional
 import httpx
 
@@ -8,14 +10,23 @@ from src.config import DirectionConfig, RouteConfig
 logger = logging.getLogger(__name__)
 
 MBTA_API_BASE_URL = "https://api-v3.mbta.com"
+ALERT_CACHE_TTL_SECONDS = 60.0
+PREDICTION_FETCH_BUFFER = 1
 
 
 class MBTAClient:
     """Client for fetching and parsing real-time MBTA transit data."""
 
-    def __init__(self, api_key: Optional[str] = None, base_url: str = MBTA_API_BASE_URL):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: str = MBTA_API_BASE_URL,
+        alert_cache_ttl_seconds: float = ALERT_CACHE_TTL_SECONDS,
+    ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
+        self.alert_cache_ttl_seconds = alert_cache_ttl_seconds
+        self._alert_cache: Dict[tuple[Optional[str], Optional[str], tuple[str, ...]], tuple[float, Dict[str, Any]]] = {}
         self.headers = {"Accept": "application/vnd.api+json"}
         if self.api_key:
             self.headers["x-api-key"] = self.api_key
@@ -34,16 +45,35 @@ class MBTAClient:
             return None
 
     @staticmethod
-    def _format_countdown(target_time: datetime, status_text: Optional[str] = None) -> tuple[int, str]:
-        """Calculate minutes until arrival using conservative transit thresholds."""
+    def _format_countdown(
+        target_time: datetime,
+        status_text: Optional[str] = None,
+        vehicle_status: Optional[str] = None,
+        vehicle_stop_id: Optional[str] = None,
+        prediction_stop_id: Optional[str] = None,
+    ) -> tuple[int, str]:
+        """Calculate minutes until the displayed prediction time."""
         now = datetime.now(timezone.utc)
         diff_seconds = (target_time - now).total_seconds()
 
-        if status_text and "board" in status_text.lower():
+        if status_text:
+            normalized_status = status_text.lower()
+            if "board" in normalized_status:
+                return 0, "BRD"
+            if "arriv" in normalized_status:
+                return 0, "ARR"
+
+        if (
+            vehicle_status == "STOPPED_AT"
+            and vehicle_stop_id
+            and prediction_stop_id
+            and vehicle_stop_id == prediction_stop_id
+            and now >= target_time - timedelta(seconds=15)
+        ):
             return 0, "BRD"
 
         # Conservative thresholds matching MBTA platform signs:
-        if diff_seconds <= 60:
+        if diff_seconds <= 30:
             return 0, "ARR"
         elif diff_seconds < 120:
             return 1, "1 min"
@@ -78,12 +108,26 @@ class MBTAClient:
         route_id: Optional[str] = None,
         route_filter: Optional[List[str]] = None,
         direction_id: Optional[int] = None,
+        page_limit: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Query MBTA /predictions endpoint."""
         params: Dict[str, Any] = {
             "filter[stop]": stop_id,
-            "include": "trip,route,stop,vehicle,schedule",
-            "sort": "departure_time",
+            "include": "trip,vehicle",
+            "fields[prediction]": ",".join([
+                "arrival_time",
+                "departure_time",
+                "direction_id",
+                "schedule_relationship",
+                "status",
+                "route",
+                "stop",
+                "trip",
+                "vehicle",
+            ]),
+            "fields[trip]": "headsign,name",
+            "fields[vehicle]": "current_status,stop",
+            "sort": "time",
         }
 
         if route_id:
@@ -94,6 +138,9 @@ class MBTAClient:
         if direction_id is not None:
             params["filter[direction_id]"] = direction_id
 
+        if page_limit is not None:
+            params["page[limit]"] = page_limit
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 f"{self.base_url}/predictions",
@@ -102,6 +149,22 @@ class MBTAClient:
             )
             response.raise_for_status()
             return response.json()
+
+    @staticmethod
+    def _merge_prediction_data(responses: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Merge per-direction prediction responses into one JSON:API-style payload."""
+        merged: Dict[str, Any] = {"data": [], "included": []}
+        included_seen = set()
+
+        for response in responses:
+            merged["data"].extend(response.get("data", []) or [])
+            for included_item in response.get("included", []) or []:
+                key = (included_item.get("type"), included_item.get("id"))
+                if key not in included_seen:
+                    merged["included"].append(included_item)
+                    included_seen.add(key)
+
+        return merged
 
     async def fetch_alerts_raw(
         self,
@@ -112,6 +175,7 @@ class MBTAClient:
         """Query MBTA /alerts endpoint for active disruptions."""
         params: Dict[str, Any] = {
             "filter[datetime]": "NOW",
+            "fields[alert]": "header,short_header,effect,severity",
         }
         if stop_id:
             params["filter[stop]"] = stop_id
@@ -128,6 +192,29 @@ class MBTAClient:
             )
             response.raise_for_status()
             return response.json()
+
+    async def fetch_alerts_cached(
+        self,
+        stop_id: Optional[str] = None,
+        route_id: Optional[str] = None,
+        route_filter: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Fetch alerts with a short cache so frequent prediction refreshes do not spam alerts."""
+        cache_key = (stop_id, route_id, tuple(route_filter or []))
+        now = monotonic()
+        cached = self._alert_cache.get(cache_key)
+        if cached:
+            fetched_at, data = cached
+            if now - fetched_at < self.alert_cache_ttl_seconds:
+                return data
+
+        data = await self.fetch_alerts_raw(
+            stop_id=stop_id,
+            route_id=route_id,
+            route_filter=route_filter,
+        )
+        self._alert_cache[cache_key] = (now, data)
+        return data
 
     async def get_route_departures(
         self,
@@ -147,15 +234,29 @@ class MBTAClient:
         }
 
         try:
+            # Group predictions by direction or route
+            dir_overrides: Dict[int, str] = {}
+            for d in route_config.directions:
+                if d.headsign:
+                    dir_overrides[d.direction_id] = d.headsign
+
+            configured_dirs = [d.direction_id for d in route_config.directions] or [0, 1]
+
             # 1. Fetch Predictions
-            pred_data = await self.fetch_predictions_raw(
-                stop_id=route_config.stop_id,
-                route_id=route_config.route_id,
-                route_filter=route_config.route_filter,
-            )
+            prediction_responses = await asyncio.gather(*[
+                self.fetch_predictions_raw(
+                    stop_id=route_config.stop_id,
+                    route_id=route_config.route_id,
+                    route_filter=route_config.route_filter,
+                    direction_id=d_id,
+                    page_limit=max_per_direction + PREDICTION_FETCH_BUFFER,
+                )
+                for d_id in configured_dirs
+            ])
+            pred_data = self._merge_prediction_data(prediction_responses)
 
             # 2. Fetch Alerts
-            alert_data = await self.fetch_alerts_raw(
+            alert_data = await self.fetch_alerts_cached(
                 stop_id=route_config.stop_id,
                 route_id=route_config.route_id,
                 route_filter=route_config.route_filter,
@@ -180,20 +281,17 @@ class MBTAClient:
                     })
             result["alerts"] = parsed_alerts
 
-            # Group predictions by direction or route
-            dir_overrides: Dict[int, str] = {}
-            for d in route_config.directions:
-                if d.headsign:
-                    dir_overrides[d.direction_id] = d.headsign
-
             directions_map: Dict[int, List[Dict[str, Any]]] = {0: [], 1: []}
 
             for p in predictions:
                 attrs = p.get("attributes") or {}
                 rel = p.get("relationships") or {}
 
-                # Prioritize arrival_time over departure_time so we calculate when the train pulls up
-                target_time_str = attrs.get("arrival_time") or attrs.get("departure_time")
+                arrival_time_str = attrs.get("arrival_time")
+                departure_time_str = attrs.get("departure_time")
+                # Use arrival_time for ETA when available; departure_time remains useful
+                # metadata for debugging and for predictions that omit an arrival.
+                target_time_str = arrival_time_str or departure_time_str
                 if not target_time_str:
                     continue
 
@@ -228,9 +326,18 @@ class MBTAClient:
                 vehicle_id = self._get_rel_id(rel, "vehicle")
                 vehicle_item = included.get(f"vehicle:{vehicle_id}") if vehicle_id else None
                 v_attrs = (vehicle_item.get("attributes") or {}) if vehicle_item else {}
+                v_rel = (vehicle_item.get("relationships") or {}) if vehicle_item else {}
                 vehicle_status = v_attrs.get("current_status")
+                vehicle_stop_id = self._get_rel_id(v_rel, "stop")
+                prediction_stop_id = self._get_rel_id(rel, "stop")
 
-                minutes, countdown_label = self._format_countdown(target_time, status)
+                minutes, countdown_label = self._format_countdown(
+                    target_time,
+                    status,
+                    vehicle_status=vehicle_status,
+                    vehicle_stop_id=vehicle_stop_id,
+                    prediction_stop_id=prediction_stop_id,
+                )
 
                 # Determine effective headsign
                 display_headsign = headsign or dir_overrides.get(direction_id, f"Direction {direction_id}")
@@ -244,18 +351,18 @@ class MBTAClient:
                     "minutes": minutes,
                     "countdown": countdown_label,
                     "time_iso": target_time_str,
+                    "arrival_time_iso": arrival_time_str,
+                    "departure_time_iso": departure_time_str,
                     "time_formatted": target_time.strftime("%I:%M %p").lstrip("0"),
                     "status": status,
                     "schedule_relationship": schedule_rel,
                     "vehicle_status": vehicle_status,
+                    "vehicle_stop_id": vehicle_stop_id,
                 }
 
                 if direction_id not in directions_map:
                     directions_map[direction_id] = []
                 directions_map[direction_id].append(entry)
-
-            # Build directions output
-            configured_dirs = [d.direction_id for d in route_config.directions] or [0, 1]
 
             for d_id in configured_dirs:
                 entries = directions_map.get(d_id, [])

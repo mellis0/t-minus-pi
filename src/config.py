@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 import yaml
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from pydantic import BaseModel, Field
 
 
@@ -47,7 +47,9 @@ def load_config(
     """Load configuration from .env and YAML file."""
     # Load .env file
     env_file = Path(env_path)
+    env_values = {}
     if env_file.exists():
+        env_values = {k: v for k, v in dotenv_values(env_file).items() if v is not None}
         load_dotenv(dotenv_path=env_file, override=True)
     else:
         load_dotenv(override=True)
@@ -57,8 +59,8 @@ def load_config(
         or os.getenv("KEY", "").strip()
         or None
     )
-    env_host = os.getenv("HOST")
-    env_port = os.getenv("PORT")
+    env_host = env_values.get("HOST") if env_values else os.getenv("HOST")
+    env_port = env_values.get("PORT") if env_values else os.getenv("PORT")
 
     config_file = Path(config_path)
     raw_data = {}
