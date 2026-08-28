@@ -9,26 +9,26 @@ from src.mbta_client import MBTAClient
 def test_format_countdown():
     now = datetime.now(timezone.utc)
 
-    # Arriving in 15 seconds -> ARR
-    t_arr = now + timedelta(seconds=15)
+    # Within 60 seconds -> ARR
+    t_arr = now + timedelta(seconds=45)
     minutes, label = MBTAClient._format_countdown(t_arr)
     assert minutes == 0
     assert label == "ARR"
 
-    # Arriving in 1 minute -> 1 min
-    t_1min = now + timedelta(seconds=65)
+    # 61-119 seconds -> 1 min
+    t_1min = now + timedelta(seconds=95)
     minutes, label = MBTAClient._format_countdown(t_1min)
     assert minutes == 1
     assert label == "1 min"
 
-    # Arriving in 7 minutes -> 7 min
-    t_7min = now + timedelta(minutes=7)
-    minutes, label = MBTAClient._format_countdown(t_7min)
-    assert minutes == 7
-    assert label == "7 min"
+    # 150 seconds -> 2 min
+    t_2min = now + timedelta(seconds=150)
+    minutes, label = MBTAClient._format_countdown(t_2min)
+    assert minutes == 2
+    assert label == "2 min"
 
     # Status Boarding -> BRD
-    minutes, label = MBTAClient._format_countdown(t_7min, status_text="Boarding train")
+    minutes, label = MBTAClient._format_countdown(t_2min, status_text="Boarding train")
     assert label == "BRD"
 
 

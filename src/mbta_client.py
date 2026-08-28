@@ -35,19 +35,20 @@ class MBTAClient:
 
     @staticmethod
     def _format_countdown(target_time: datetime, status_text: Optional[str] = None) -> tuple[int, str]:
-        """Calculate minutes until departure and format a glanceable countdown display."""
+        """Calculate minutes until arrival using conservative transit thresholds."""
         now = datetime.now(timezone.utc)
         diff_seconds = (target_time - now).total_seconds()
-        minutes = int(round(diff_seconds / 60))
 
         if status_text and "board" in status_text.lower():
             return 0, "BRD"
 
-        if minutes <= 0:
+        # Conservative thresholds matching MBTA platform signs:
+        if diff_seconds <= 60:
             return 0, "ARR"
-        elif minutes == 1:
+        elif diff_seconds < 120:
             return 1, "1 min"
         else:
+            minutes = int(diff_seconds // 60)
             return minutes, f"{minutes} min"
 
     @staticmethod
@@ -191,18 +192,18 @@ class MBTAClient:
                 attrs = p.get("attributes") or {}
                 rel = p.get("relationships") or {}
 
-                # Departure or arrival time
-                dep_time_str = attrs.get("departure_time") or attrs.get("arrival_time")
-                if not dep_time_str:
+                # Prioritize arrival_time over departure_time so we calculate when the train pulls up
+                target_time_str = attrs.get("arrival_time") or attrs.get("departure_time")
+                if not target_time_str:
                     continue
 
-                dep_time = self._parse_time(dep_time_str)
-                if not dep_time:
+                target_time = self._parse_time(target_time_str)
+                if not target_time:
                     continue
 
-                # Skip past departures (more than 1 minute ago)
+                # Skip past departures (more than 30 seconds ago)
                 now = datetime.now(timezone.utc)
-                if (dep_time - now).total_seconds() < -60:
+                if (target_time - now).total_seconds() < -30:
                     continue
 
                 direction_id = attrs.get("direction_id", 0)
@@ -229,7 +230,7 @@ class MBTAClient:
                 v_attrs = (vehicle_item.get("attributes") or {}) if vehicle_item else {}
                 vehicle_status = v_attrs.get("current_status")
 
-                minutes, countdown_label = self._format_countdown(dep_time, status)
+                minutes, countdown_label = self._format_countdown(target_time, status)
 
                 # Determine effective headsign
                 display_headsign = headsign or dir_overrides.get(direction_id, f"Direction {direction_id}")
@@ -242,8 +243,8 @@ class MBTAClient:
                     "train_number": train_number or "",
                     "minutes": minutes,
                     "countdown": countdown_label,
-                    "time_iso": dep_time_str,
-                    "time_formatted": dep_time.strftime("%I:%M %p").lstrip("0"),
+                    "time_iso": target_time_str,
+                    "time_formatted": target_time.strftime("%I:%M %p").lstrip("0"),
                     "status": status,
                     "schedule_relationship": schedule_rel,
                     "vehicle_status": vehicle_status,
