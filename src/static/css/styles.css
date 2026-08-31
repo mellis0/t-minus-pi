@@ -237,6 +237,10 @@ body {
   border-radius: 6px;
 }
 
+.departure-row.scheduled-only {
+  opacity: 0.62;
+}
+
 .departure-left {
   display: flex;
   align-items: center;
@@ -255,9 +259,22 @@ body {
   text-align: center;
 }
 
+.departure-main {
+  min-width: 0;
+}
+
 .departure-headsign {
   font-size: 1.05rem;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.departure-service-detail {
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -267,6 +284,15 @@ body {
   font-size: 0.8rem;
   color: var(--text-muted);
   font-weight: 500;
+}
+
+.departure-source-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
 }
 
 .departure-right {
