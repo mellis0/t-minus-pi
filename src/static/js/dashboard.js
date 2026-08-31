@@ -122,11 +122,13 @@ function renderCard(card) {
             .map((dep) => {
               const isArr = dep.countdown === "ARR";
               const isBrd = dep.countdown === "BRD";
+              const isScheduledOnly = card.type === "commuter_rail" && dep.is_predicted === false;
               const badgeClass = isArr
                 ? "countdown-badge arriving"
                 : isBrd
                 ? "countdown-badge boarding"
                 : "countdown-badge";
+              const rowClass = isScheduledOnly ? "departure-row scheduled-only" : "departure-row";
 
               const busBadge =
                 card.type === "bus" && dep.route_name
@@ -137,11 +139,22 @@ function renderCard(card) {
                 ? `<span class="departure-train-no">#${escapeHtml(dep.train_number)}</span>`
                 : "";
 
+              const scheduleBadge = isScheduledOnly
+                ? '<span class="departure-source-badge">Scheduled</span>'
+                : "";
+
+              const serviceDetail = dep.service_detail
+                ? `<div class="departure-service-detail">${escapeHtml(dep.service_detail)}</div>`
+                : "";
+
               return `
-                <div class="departure-row">
+                <div class="${rowClass}">
                   <div class="departure-left">
                     ${busBadge}
-                    <div class="departure-headsign">${escapeHtml(dep.headsign)} ${trainNumber}</div>
+                    <div class="departure-main">
+                      <div class="departure-headsign">${escapeHtml(dep.headsign)} ${trainNumber} ${scheduleBadge}</div>
+                      ${serviceDetail}
+                    </div>
                   </div>
                   <div class="departure-right">
                     <div class="departure-time-clock">${dep.time_formatted}</div>
