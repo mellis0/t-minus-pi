@@ -29,7 +29,7 @@ Tracked stops, routes, directions, and display names are fully customizable thro
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/mellis0/t-minus-pi.git
+   git clone <repository-url>
    cd t-minus-pi
    ```
 
@@ -142,9 +142,61 @@ The dashboard will be accessible at `http://localhost:8000`.
 
 ## Deployment
 
-For Raspberry Pi kiosk deployments, install the systemd service in `systemd/t-minus-pi.service` and use `scripts/setup_kiosk.sh` to configure Chromium kiosk autostart.
+The repository includes a systemd service for the backend and a kiosk setup script for Chromium. The bundled service template assumes the project is installed at `/home/pi/t-minus-pi` and runs as user `pi`. If your Pi uses a different user or project path, edit `User`, `WorkingDirectory`, `ExecStart`, and `EnvironmentFile` in `systemd/t-minus-pi.service` before installing it.
 
-The bundled service binds Uvicorn to `127.0.0.1:8000`, so the dashboard is only exposed on the device itself by default. The kiosk script opens `http://localhost:8000` in fullscreen Chromium.
+Install and start the backend service:
+
+```bash
+cd /home/pi/t-minus-pi
+sudo cp systemd/t-minus-pi.service /etc/systemd/system/t-minus-pi.service
+sudo systemctl daemon-reload
+sudo systemctl enable t-minus-pi
+sudo systemctl start t-minus-pi
+systemctl status t-minus-pi
+curl http://localhost:8000/api/health
+```
+
+Configure Chromium kiosk autostart:
+
+```bash
+bash scripts/setup_kiosk.sh
+sudo reboot
+```
+
+The service binds Uvicorn to `127.0.0.1:8000`, so the dashboard is only exposed on the device itself by default. The kiosk script opens `http://localhost:8000` in fullscreen Chromium after desktop login.
+
+To temporarily exit kiosk mode, press `Alt+F4`, or switch to a text console with `Ctrl+Alt+F2`. Return to the desktop with `Ctrl+Alt+F7` or `Ctrl+Alt+F1`, depending on the Raspberry Pi OS version.
+
+To turn kiosk mode off:
+
+```bash
+rm ~/.config/autostart/t-minus-pi-kiosk.desktop
+sudo systemctl disable --now t-minus-pi
+```
+
+To shut down the Pi while preserving kiosk startup for the next boot:
+
+```bash
+sudo poweroff
+```
+
+### Deployment Troubleshooting
+
+If `systemctl status t-minus-pi` shows `status=203/EXEC`, systemd could not execute the command in `ExecStart`. Confirm the venv path exists and that the service uses Python from the venv:
+
+```bash
+ls -l /home/pi/t-minus-pi/.venv/bin/python
+sudo systemctl cat t-minus-pi
+```
+
+If you edit the service file in the repo, reinstall it before restarting:
+
+```bash
+sudo cp /home/pi/t-minus-pi/systemd/t-minus-pi.service /etc/systemd/system/t-minus-pi.service
+sudo systemctl daemon-reload
+sudo systemctl restart t-minus-pi
+sudo systemctl cat t-minus-pi
+```
 
 ## License
 

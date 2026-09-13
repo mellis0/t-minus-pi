@@ -5,7 +5,8 @@ set -e
 # t-minus-pi Kiosk Setup Script for Raspberry Pi OS
 # ==============================================================================
 
-echo "Setting up t-minus-pi kiosk mode on Raspberry Pi..."
+echo "Configuring Chromium kiosk autostart for t-minus-pi..."
+echo "This script does not install or start the backend systemd service."
 
 # Install required tools (Chromium, unclutter to hide mouse cursor, xdotool)
 sudo apt update
@@ -31,4 +32,4 @@ else
     sudo sed -i 's/^#xserver-command=X/xserver-command=X -s 0 -dpms/' /etc/lightdm/lightdm.conf 2>/dev/null || true
 fi
 
-echo "Kiosk autostart configured successfully."
+echo "Chromium kiosk autostart configured successfully."
