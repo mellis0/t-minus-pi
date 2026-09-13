@@ -151,13 +151,12 @@ class MBTAClient:
         route_filter: Optional[List[str]] = None,
         direction_id: Optional[int] = None,
         page_limit: Optional[int] = None,
+        include_uncertainty: bool = False,
     ) -> Dict[str, Any]:
         """Query MBTA /predictions endpoint."""
         prediction_fields = [
             "arrival_time",
-            "arrival_uncertainty",
             "departure_time",
-            "departure_uncertainty",
             "direction_id",
             "schedule_relationship",
             "status",
@@ -166,14 +165,15 @@ class MBTAClient:
             "trip",
             "vehicle",
         ]
+        if include_uncertainty:
+            prediction_fields.extend(["arrival_uncertainty", "departure_uncertainty"])
 
         params: Dict[str, Any] = {
             "filter[stop]": stop_id,
-            "include": "trip,vehicle,route",
+            "include": "trip,vehicle",
             "fields[prediction]": ",".join(prediction_fields),
             "fields[trip]": "headsign,name",
             "fields[vehicle]": "current_status,stop",
-            "fields[route]": "short_name,color",
             "sort": "time",
         }
 
@@ -332,6 +332,15 @@ class MBTAClient:
         )
         self._alert_cache[cache_key] = (now, data)
         return data
+
+    @staticmethod
+    def _alert_filter_kwargs_for_route(route_config: RouteConfig) -> Dict[str, Any]:
+        """Prefer route-scoped alerts so station hubs do not leak unrelated line alerts."""
+        if route_config.route_id:
+            return {"route_id": route_config.route_id}
+        if route_config.route_filter:
+            return {"route_filter": route_config.route_filter}
+        return {"stop_id": route_config.stop_id}
 
     def _parse_alerts(self, alert_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract alert fields used by the dashboard."""
@@ -676,9 +685,7 @@ class MBTAClient:
                     for d_id in configured_dirs
                 ]),
                 self.fetch_alerts_cached(
-                    stop_id=route_config.stop_id,
-                    route_id=route_config.route_id,
-                    route_filter=route_config.route_filter,
+                    **self._alert_filter_kwargs_for_route(route_config),
                 ),
             )
 
@@ -798,6 +805,7 @@ class MBTAClient:
                     route_id=target.route_id,
                     direction_id=target.direction_id,
                     page_limit=fetch_limit,
+                    include_uncertainty=True,
                 )
                 for target in targets
             ])
@@ -835,13 +843,10 @@ class MBTAClient:
                 ],
             })
 
-            alert_responses = await asyncio.gather(*[
-                self.fetch_alerts_cached(
-                    stop_id=target.stop_id,
-                    route_id=target.route_id,
-                )
-                for target in targets
-            ])
+            target_route_ids = list(dict.fromkeys(target.route_id for target in targets))
+            alert_responses = [
+                await self.fetch_alerts_cached(route_filter=target_route_ids)
+            ]
             seen_alerts = set()
             parsed_alerts: List[Dict[str, Any]] = []
             for alert_data in alert_responses:
@@ -911,9 +916,7 @@ class MBTAClient:
 
             # 2. Fetch Alerts
             alert_data = await self.fetch_alerts_cached(
-                stop_id=route_config.stop_id,
-                route_id=route_config.route_id,
-                route_filter=route_config.route_filter,
+                **self._alert_filter_kwargs_for_route(route_config),
             )
 
             included = self._build_included_map(pred_data.get("included", []))

@@ -1,7 +1,7 @@
 // t-minus-pi Client-Side Dashboard Controller
 
 const CONFIG = {
-  refreshIntervalMs: 20000,
+  refreshIntervalMs: 10000,
   time24h: false,
 };
 

@@ -1,7 +1,7 @@
 server:
   host: "127.0.0.1"
   port: 8000
-  refresh_seconds: 20
+  refresh_seconds: 10
 
 display:
   title: "MBTA Transit Departures"
@@ -13,7 +13,7 @@ routes:
   - id: "red_line"
     type: "subway"
     route_id: "Red"
-    stop_id: "place-dwnrn"
+    stop_id: "place-dwnxg"
     name: "Downtown Crossing - Red Line"
     directions:
       - direction_id: 0

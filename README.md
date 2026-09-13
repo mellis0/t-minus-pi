@@ -2,6 +2,10 @@
 
 A lightweight Python application that fetches real-time MBTA transit data and renders a clean, glanceable web dashboard optimized for a Raspberry Pi display.
 
+## Dashboard
+
+![t-minus-pi dashboard showing MBTA departures](docs/assets/dashboard.png)
+
 ## Overview
 
 t-minus-pi connects to the MBTA V3 API to retrieve real-time departure predictions, vehicle positions, and service alerts across subway, commuter rail, and bus routes. The dashboard is designed to run in fullscreen kiosk mode on a Raspberry Pi connected to an HDMI display, providing an at-a-glance departure board for daily transit tracking.
@@ -19,7 +23,7 @@ Tracked stops, routes, directions, and display names are fully customizable thro
 ### Prerequisites
 
 - Python 3.10 or higher
-- MBTA API key (obtainable at https://api-v3.mbta.com/register)
+- MBTA API key (free at https://api-v3.mbta.com/register)
 
 ### Installation
 
@@ -75,38 +79,57 @@ server:
 display:
   title: "MBTA Transit Departures"
   clock_format_24h: false
+  max_predictions_per_direction: 3
 
 routes:
-  # Subway Example
-  - id: "subway_line"
+  # Subway Example: Red Line
+  - id: "red_line"
     type: "subway"
     route_id: "Red"
-    stop_id: "place-dwnrn"
+    stop_id: "place-dwnxg"
     name: "Downtown Crossing - Red Line"
     directions:
       - direction_id: 0
-        headsign_override: "Southbound"
+        headsign: "Ashmont / Braintree (Southbound)"
       - direction_id: 1
-        headsign_override: "Northbound"
+        headsign: "Alewife (Northbound)"
 
-  # Commuter Rail Example
-  - id: "commuter_rail_line"
+  # Commuter Rail Example: Fitchburg Line at North Station
+  - id: "fitchburg_line"
     type: "commuter_rail"
     route_id: "CR-Fitchburg"
     stop_id: "place-north"
     name: "North Station - Fitchburg Line"
     directions:
       - direction_id: 0
-        headsign_override: "Outbound"
+        headsign: "Fitchburg (Outbound)"
       - direction_id: 1
-        headsign_override: "Inbound"
+        headsign: "North Station (Inbound)"
 
-  # Bus Example
-  - id: "local_bus_routes"
+  # Bus Example: target-specific live ETAs
+  - id: "local_buses"
     type: "bus"
-    stop_id: "place-harsq"
-    name: "Harvard Square - Local Buses"
-    route_filter: ["1", "66", "77"]
+    stop_id: "place-andrw"
+    name: "Local Buses"
+    bus_targets:
+      - route_id: "10"
+        route_name: "10"
+        stop_id: "place-andrw"
+        stop_name: "Andrew"
+        direction_id: 0
+        direction_name: "Outbound"
+      - route_id: "10"
+        route_name: "10"
+        stop_id: "place-andrw"
+        stop_name: "Andrew"
+        direction_id: 1
+        direction_name: "Inbound"
+      - route_id: "708"
+        route_name: "CT3"
+        stop_id: "place-andrw"
+        stop_name: "Andrew"
+        direction_id: 0
+        direction_name: "Outbound"
 ```
 
 ### Running the Application
@@ -118,25 +141,6 @@ python -m uvicorn src.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 The dashboard will be accessible at `http://localhost:8000`.
-
-## Planned Features (TODO)
-
-- MBTA API client: Async Python client using httpx to query predictions, schedules, and alerts from the MBTA V3 API.
-- Configuration loader: Validation and parsing for config.yaml and .env variables.
-- Kiosk frontend: High-contrast, glanceable 1080p user interface.
-- Live clock: Digital clock with date and second-by-second updates.
-- Departure cards: Color-coded cards for subway, commuter rail, and bus routes displaying countdowns in minutes.
-- Service alerts: Status banners for delays, disruptions, and elevator outages impacting tracked routes.
-- Raspberry Pi deployment: Autostart kiosk configuration script and systemd service file.
-- Automated testing: Unit tests and mock API tests using pytest.
-
-## Future Roadmap (Optional Features)
-
-- Weather widget: Local temperature and weather conditions display.
-- Walking time calculation: Adjust departure countdowns based on walking distance to stations, including leave-now indicators.
-- Boston sports schedule: Event and game day schedule integration for local teams (Bruins, Celtics, Red Sox, Patriots) with crowd and delay warnings.
-- Configuration GUI: Web-based settings interface to search MBTA stops and manage configuration without modifying YAML files directly.
-- Network resilience: Offline status indicators and automatic reconnection handling.
 
 ## License
 

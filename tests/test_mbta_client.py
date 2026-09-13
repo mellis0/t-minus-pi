@@ -218,16 +218,36 @@ async def test_fetch_predictions_raw_uses_minimal_prediction_fields():
     kwargs = mock_client.get.await_args.kwargs
     assert kwargs["params"] == {
         "filter[stop]": "place-andrw",
-        "include": "trip,vehicle,route",
-        "fields[prediction]": "arrival_time,arrival_uncertainty,departure_time,departure_uncertainty,direction_id,schedule_relationship,status,route,stop,trip,vehicle",
+        "include": "trip,vehicle",
+        "fields[prediction]": "arrival_time,departure_time,direction_id,schedule_relationship,status,route,stop,trip,vehicle",
         "fields[trip]": "headsign,name",
         "fields[vehicle]": "current_status,stop",
-        "fields[route]": "short_name,color",
         "sort": "time",
         "filter[route]": "Red",
         "filter[direction_id]": 0,
         "page[limit]": 4,
     }
+
+
+@pytest.mark.asyncio
+async def test_fetch_predictions_raw_includes_uncertainty_fields_when_needed():
+    client = MBTAClient(api_key="mock_key")
+    mock_client = MockAsyncClient({"data": []})
+
+    with patch("src.mbta_client.httpx.AsyncClient", return_value=mock_client):
+        await client.fetch_predictions_raw(
+            stop_id="place-andrw",
+            route_id="10",
+            direction_id=0,
+            page_limit=9,
+            include_uncertainty=True,
+        )
+
+    kwargs = mock_client.get.await_args.kwargs
+    assert kwargs["params"]["fields[prediction]"] == (
+        "arrival_time,departure_time,direction_id,schedule_relationship,status,"
+        "route,stop,trip,vehicle,arrival_uncertainty,departure_uncertainty"
+    )
 
 
 @pytest.mark.asyncio
@@ -472,6 +492,30 @@ def test_has_live_bus_time_filters_schedule_only_predictions():
     })
 
 
+def test_alert_filter_kwargs_prefers_selected_routes_over_stops():
+    assert MBTAClient._alert_filter_kwargs_for_route(RouteConfig(
+        id="worcester_line",
+        type="commuter_rail",
+        route_id="CR-Worcester",
+        stop_id="place-sstat",
+        name="Framingham/Worcester Line",
+    )) == {"route_id": "CR-Worcester"}
+
+    assert MBTAClient._alert_filter_kwargs_for_route(RouteConfig(
+        id="local_buses",
+        type="bus",
+        stop_id="place-andrw",
+        name="Local Buses",
+        route_filter=["10", "708"],
+    )) == {"route_filter": ["10", "708"]}
+
+    assert MBTAClient._alert_filter_kwargs_for_route(RouteConfig(
+        id="stop_only",
+        stop_id="place-andrw",
+        name="Andrew",
+    )) == {"stop_id": "place-andrw"}
+
+
 @pytest.mark.asyncio
 async def test_bus_targets_use_exact_route_stop_direction_and_hide_non_live_predictions():
     client = MBTAClient(api_key="mock_key")
@@ -580,9 +624,10 @@ async def test_bus_targets_use_exact_route_stop_direction_and_hide_non_live_pred
     assert departures[0]["time_iso"] == live_time.isoformat()
     assert departures[1]["time_iso"] == second_live_time.isoformat()
     mock_fetch_pred.assert_has_awaits([
-        call(stop_id="place-andrw", route_id="10", direction_id=0, page_limit=9),
-        call(stop_id="place-andrw", route_id="10", direction_id=1, page_limit=9),
+        call(stop_id="place-andrw", route_id="10", direction_id=0, page_limit=9, include_uncertainty=True),
+        call(stop_id="place-andrw", route_id="10", direction_id=1, page_limit=9, include_uncertainty=True),
     ])
+    mock_fetch_alerts.assert_awaited_once_with(route_filter=["10"])
 
 
 @pytest.mark.asyncio
@@ -644,7 +689,9 @@ async def test_bus_targets_query_ct3_by_route_id_708_and_display_short_name():
         route_id="708",
         direction_id=0,
         page_limit=9,
+        include_uncertainty=True,
     )
+    mock_fetch_alerts.assert_awaited_once_with(route_filter=["708"])
 
 
 @pytest.mark.asyncio
