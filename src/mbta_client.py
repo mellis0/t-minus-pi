@@ -6,13 +6,14 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 import httpx
 
-from src.config import DirectionConfig, RouteConfig
+from src.config import BusTargetConfig, DirectionConfig, RouteConfig
 
 logger = logging.getLogger(__name__)
 
 MBTA_API_BASE_URL = "https://api-v3.mbta.com"
 ALERT_CACHE_TTL_SECONDS = 60.0
 PREDICTION_FETCH_BUFFER = 1
+BUS_TARGET_DISPLAY_LIMIT = 8
 MBTA_SERVICE_TIMEZONE = ZoneInfo("America/New_York")
 WORCESTER_OUTBOUND_STOP_ORDER = [
     ("NEC-2287", "South Station"),
@@ -154,7 +155,9 @@ class MBTAClient:
         """Query MBTA /predictions endpoint."""
         prediction_fields = [
             "arrival_time",
+            "arrival_uncertainty",
             "departure_time",
+            "departure_uncertainty",
             "direction_id",
             "schedule_relationship",
             "status",
@@ -166,10 +169,11 @@ class MBTAClient:
 
         params: Dict[str, Any] = {
             "filter[stop]": stop_id,
-            "include": "trip,vehicle",
+            "include": "trip,vehicle,route",
             "fields[prediction]": ",".join(prediction_fields),
             "fields[trip]": "headsign,name",
             "fields[vehicle]": "current_status,stop",
+            "fields[route]": "short_name,color",
             "sort": "time",
         }
 
@@ -352,6 +356,7 @@ class MBTAClient:
         included: Dict[str, Dict[str, Any]],
         dir_overrides: Dict[int, str],
         scheduled_time_str: Optional[str] = None,
+        bus_target: Optional[BusTargetConfig] = None,
     ) -> Optional[Dict[str, Any]]:
         attrs = prediction.get("attributes") or {}
         rel = prediction.get("relationships") or {}
@@ -386,7 +391,12 @@ class MBTAClient:
         r_id = self._get_rel_id(rel, "route")
         r_item = included.get(f"route:{r_id}") if r_id else None
         r_attrs = (r_item.get("attributes") or {}) if r_item else {}
-        route_short_name = r_attrs.get("short_name") or r_id or ""
+        route_short_name = (
+            r_attrs.get("short_name")
+            or (bus_target.route_name if bus_target else None)
+            or r_id
+            or ""
+        )
         route_color = r_attrs.get("color") or "DA291C"
 
         vehicle_id = self._get_rel_id(rel, "vehicle")
@@ -406,12 +416,16 @@ class MBTAClient:
         )
 
         display_headsign = headsign or dir_overrides.get(direction_id, f"Direction {direction_id}")
+        direction_label = bus_target.direction_name if bus_target else dir_overrides.get(direction_id)
+        stop_name = bus_target.stop_name if bus_target else None
 
         return {
             "route_id": r_id,
             "route_name": route_short_name,
             "route_color": f"#{route_color}" if not route_color.startswith("#") else route_color,
             "headsign": display_headsign,
+            "direction_label": direction_label,
+            "stop_name": stop_name,
             "train_number": train_number or "",
             "minutes": minutes,
             "countdown": countdown_label,
@@ -431,6 +445,25 @@ class MBTAClient:
             "_stop_id": prediction_stop_id,
             "_sort_time": target_time,
         }
+
+    @staticmethod
+    def _has_live_bus_time(prediction: Dict[str, Any]) -> bool:
+        attrs = prediction.get("attributes") or {}
+        if attrs.get("arrival_time"):
+            uncertainty = attrs.get("arrival_uncertainty")
+        elif attrs.get("departure_time"):
+            uncertainty = attrs.get("departure_uncertainty")
+        else:
+            return False
+
+        if uncertainty is None:
+            return True
+        try:
+            uncertainty_value = int(uncertainty)
+        except (TypeError, ValueError):
+            return False
+
+        return uncertainty_value < 300 or uncertainty_value == 301
 
     def _schedule_to_entry(
         self,
@@ -738,6 +771,94 @@ class MBTAClient:
 
         return result
 
+    async def _get_bus_target_departures(
+        self,
+        route_config: RouteConfig,
+        max_per_direction: int,
+    ) -> Dict[str, Any]:
+        """Fetch live bus ETAs for configured route/stop/direction targets."""
+        result: Dict[str, Any] = {
+            "id": route_config.id,
+            "name": route_config.name,
+            "type": route_config.type,
+            "stop_id": route_config.stop_id,
+            "route_id": route_config.route_id,
+            "directions": [],
+            "alerts": [],
+            "error": None,
+        }
+
+        try:
+            targets = route_config.bus_targets
+            fetch_limit = BUS_TARGET_DISPLAY_LIMIT + PREDICTION_FETCH_BUFFER
+
+            prediction_responses = await asyncio.gather(*[
+                self.fetch_predictions_raw(
+                    stop_id=target.stop_id,
+                    route_id=target.route_id,
+                    direction_id=target.direction_id,
+                    page_limit=fetch_limit,
+                )
+                for target in targets
+            ])
+
+            live_entries: List[Dict[str, Any]] = []
+            for target, pred_data in zip(targets, prediction_responses):
+                included = self._build_included_map(pred_data.get("included", []))
+
+                for prediction in pred_data.get("data", []) or []:
+                    attrs = prediction.get("attributes") or {}
+                    rel = prediction.get("relationships") or {}
+                    if attrs.get("direction_id") != target.direction_id:
+                        continue
+                    if self._get_rel_id(rel, "route") != target.route_id:
+                        continue
+                    if not self._has_live_bus_time(prediction):
+                        continue
+
+                    entry = self._prediction_to_entry(
+                        prediction,
+                        included,
+                        {},
+                        bus_target=target,
+                    )
+                    if entry:
+                        live_entries.append(entry)
+
+            live_entries.sort(key=lambda x: x["_sort_time"])
+            result["directions"].append({
+                "direction_id": 0,
+                "name": "Live ETA",
+                "departures": [
+                    self._strip_private_entry_fields(entry)
+                    for entry in live_entries[:BUS_TARGET_DISPLAY_LIMIT]
+                ],
+            })
+
+            alert_responses = await asyncio.gather(*[
+                self.fetch_alerts_cached(
+                    stop_id=target.stop_id,
+                    route_id=target.route_id,
+                )
+                for target in targets
+            ])
+            seen_alerts = set()
+            parsed_alerts: List[Dict[str, Any]] = []
+            for alert_data in alert_responses:
+                for alert in self._parse_alerts(alert_data):
+                    key = alert.get("id") or alert.get("header")
+                    if key in seen_alerts:
+                        continue
+                    seen_alerts.add(key)
+                    parsed_alerts.append(alert)
+            result["alerts"] = parsed_alerts
+
+        except Exception as e:
+            logger.error(f"Error fetching bus target departures for {route_config.id}: {e}", exc_info=True)
+            result["error"] = str(e)
+
+        return result
+
     async def get_route_departures(
         self,
         route_config: RouteConfig,
@@ -758,6 +879,11 @@ class MBTAClient:
         try:
             if route_config.type == "commuter_rail":
                 return await self._get_commuter_rail_departures(
+                    route_config,
+                    max_per_direction=max_per_direction,
+                )
+            if route_config.type == "bus" and route_config.bus_targets:
+                return await self._get_bus_target_departures(
                     route_config,
                     max_per_direction=max_per_direction,
                 )

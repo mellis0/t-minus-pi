@@ -53,7 +53,7 @@ Set your API key in `.env`:
 ```env
 MBTA_API_KEY=your_api_key_here
 PORT=8000
-HOST=0.0.0.0
+HOST=127.0.0.1
 ```
 
 ### Route Configuration
@@ -68,7 +68,7 @@ Example configuration structure:
 
 ```yaml
 server:
-  host: "0.0.0.0"
+  host: "127.0.0.1"
   port: 8000
   refresh_seconds: 20
 
@@ -114,7 +114,7 @@ routes:
 Start the local web server:
 
 ```bash
-python -m uvicorn src.app:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn src.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 The dashboard will be accessible at `http://localhost:8000`.

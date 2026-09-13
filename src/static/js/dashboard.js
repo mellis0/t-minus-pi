@@ -146,6 +146,13 @@ function renderCard(card) {
               const serviceDetail = dep.service_detail
                 ? `<div class="departure-service-detail">${escapeHtml(dep.service_detail)}</div>`
                 : "";
+              const busMeta =
+                card.type === "bus" && dep.stop_name && dep.direction_label
+                  ? `${escapeHtml(dep.stop_name)}: ${escapeHtml(dep.direction_label)}`
+                  : "";
+              const busMetaHtml = busMeta
+                ? `<div class="departure-meta">${busMeta}</div>`
+                : "";
 
               return `
                 <div class="${rowClass}">
@@ -153,6 +160,7 @@ function renderCard(card) {
                     ${busBadge}
                     <div class="departure-main">
                       <div class="departure-headsign">${escapeHtml(dep.headsign)} ${trainNumber} ${scheduleBadge}</div>
+                      ${busMetaHtml}
                       ${serviceDetail}
                     </div>
                   </div>

@@ -218,10 +218,11 @@ async def test_fetch_predictions_raw_uses_minimal_prediction_fields():
     kwargs = mock_client.get.await_args.kwargs
     assert kwargs["params"] == {
         "filter[stop]": "place-andrw",
-        "include": "trip,vehicle",
-        "fields[prediction]": "arrival_time,departure_time,direction_id,schedule_relationship,status,route,stop,trip,vehicle",
+        "include": "trip,vehicle,route",
+        "fields[prediction]": "arrival_time,arrival_uncertainty,departure_time,departure_uncertainty,direction_id,schedule_relationship,status,route,stop,trip,vehicle",
         "fields[trip]": "headsign,name",
         "fields[vehicle]": "current_status,stop",
+        "fields[route]": "short_name,color",
         "sort": "time",
         "filter[route]": "Red",
         "filter[direction_id]": 0,
@@ -441,6 +442,275 @@ def test_merge_prediction_data_deduplicates_included_resources():
         {"type": "route", "id": "Red"},
         {"type": "trip", "id": "trip-1"},
         {"type": "trip", "id": "trip-2"},
+    ]
+
+
+def test_has_live_bus_time_filters_schedule_only_predictions():
+    assert MBTAClient._has_live_bus_time({
+        "attributes": {
+            "arrival_time": "2026-08-31T15:00:00-04:00",
+            "arrival_uncertainty": None,
+        }
+    })
+    assert MBTAClient._has_live_bus_time({
+        "attributes": {
+            "departure_time": "2026-08-31T15:00:00-04:00",
+            "departure_uncertainty": 301,
+        }
+    })
+    assert not MBTAClient._has_live_bus_time({
+        "attributes": {
+            "arrival_time": "2026-08-31T15:00:00-04:00",
+            "arrival_uncertainty": 300,
+        }
+    })
+    assert not MBTAClient._has_live_bus_time({
+        "attributes": {
+            "departure_time": "2026-08-31T15:00:00-04:00",
+            "departure_uncertainty": 302,
+        }
+    })
+
+
+@pytest.mark.asyncio
+async def test_bus_targets_use_exact_route_stop_direction_and_hide_non_live_predictions():
+    client = MBTAClient(api_key="mock_key")
+    now = datetime.now(timezone.utc)
+    schedule_only_time = now + timedelta(minutes=3)
+    live_time = now + timedelta(minutes=8)
+    second_live_time = now + timedelta(minutes=12)
+
+    outbound_data = {
+        "data": [
+            {
+                "id": "schedule_only",
+                "attributes": {
+                    "arrival_time": schedule_only_time.isoformat(),
+                    "arrival_uncertainty": 300,
+                    "departure_time": schedule_only_time.isoformat(),
+                    "departure_uncertainty": 300,
+                    "direction_id": 0,
+                },
+                "relationships": {
+                    "route": {"data": {"id": "10"}},
+                    "stop": {"data": {"id": "place-andrw"}},
+                    "trip": {"data": {"id": "trip_schedule"}},
+                },
+            },
+            {
+                "id": "live",
+                "attributes": {
+                    "arrival_time": live_time.isoformat(),
+                    "arrival_uncertainty": None,
+                    "departure_time": live_time.isoformat(),
+                    "departure_uncertainty": None,
+                    "direction_id": 0,
+                },
+                "relationships": {
+                    "route": {"data": {"id": "10"}},
+                    "stop": {"data": {"id": "place-andrw"}},
+                    "trip": {"data": {"id": "trip_live"}},
+                },
+            },
+            {
+                "id": "second_live",
+                "attributes": {
+                    "arrival_time": second_live_time.isoformat(),
+                    "arrival_uncertainty": None,
+                    "departure_time": second_live_time.isoformat(),
+                    "departure_uncertainty": None,
+                    "direction_id": 0,
+                },
+                "relationships": {
+                    "route": {"data": {"id": "10"}},
+                    "stop": {"data": {"id": "place-andrw"}},
+                    "trip": {"data": {"id": "trip_second_live"}},
+                },
+            },
+        ],
+        "included": [
+            {"type": "route", "id": "10", "attributes": {"short_name": "10", "color": "FFC72C"}},
+            {"type": "trip", "id": "trip_live", "attributes": {"headsign": "City Point"}},
+            {"type": "trip", "id": "trip_second_live", "attributes": {"headsign": "City Point"}},
+            {"type": "trip", "id": "trip_schedule", "attributes": {"headsign": "City Point"}},
+        ],
+    }
+    inbound_data = {"data": [], "included": []}
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_cached", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.side_effect = [outbound_data, inbound_data]
+            mock_fetch_alerts.return_value = {"data": []}
+
+            route = RouteConfig(
+                id="local_buses",
+                type="bus",
+                stop_id="place-andrw",
+                name="Local Buses",
+                bus_targets=[
+                    {
+                        "route_id": "10",
+                        "route_name": "10",
+                        "stop_id": "place-andrw",
+                        "stop_name": "Andrew",
+                        "direction_id": 0,
+                        "direction_name": "Outbound",
+                    },
+                    {
+                        "route_id": "10",
+                        "route_name": "10",
+                        "stop_id": "place-andrw",
+                        "stop_name": "Andrew",
+                        "direction_id": 1,
+                        "direction_name": "Inbound",
+                    },
+                ],
+            )
+
+            result = await client.get_route_departures(route)
+
+    departures = result["directions"][0]["departures"]
+    assert result["error"] is None
+    assert result["directions"][0]["name"] == "Live ETA"
+    assert len(departures) == 2
+    assert departures[0]["route_name"] == "10"
+    assert departures[0]["headsign"] == "City Point"
+    assert departures[0]["direction_label"] == "Outbound"
+    assert departures[0]["stop_name"] == "Andrew"
+    assert departures[0]["time_iso"] == live_time.isoformat()
+    assert departures[1]["time_iso"] == second_live_time.isoformat()
+    mock_fetch_pred.assert_has_awaits([
+        call(stop_id="place-andrw", route_id="10", direction_id=0, page_limit=9),
+        call(stop_id="place-andrw", route_id="10", direction_id=1, page_limit=9),
+    ])
+
+
+@pytest.mark.asyncio
+async def test_bus_targets_query_ct3_by_route_id_708_and_display_short_name():
+    client = MBTAClient(api_key="mock_key")
+    live_time = datetime.now(timezone.utc) + timedelta(minutes=12)
+
+    mock_pred_data = {
+        "data": [
+            {
+                "id": "ct3_live",
+                "attributes": {
+                    "departure_time": live_time.isoformat(),
+                    "departure_uncertainty": None,
+                    "direction_id": 0,
+                },
+                "relationships": {
+                    "route": {"data": {"id": "708"}},
+                    "stop": {"data": {"id": "place-andrw"}},
+                    "trip": {"data": {"id": "trip_ct3"}},
+                },
+            }
+        ],
+        "included": [
+            {"type": "route", "id": "708", "attributes": {"short_name": "CT3", "color": "FFC72C"}},
+            {"type": "trip", "id": "trip_ct3", "attributes": {"headsign": "Avenue Louis Pasteur"}},
+        ],
+    }
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_cached", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.return_value = mock_pred_data
+            mock_fetch_alerts.return_value = {"data": []}
+
+            route = RouteConfig(
+                id="local_buses",
+                type="bus",
+                stop_id="place-andrw",
+                name="Local Buses",
+                bus_targets=[
+                    {
+                        "route_id": "708",
+                        "route_name": "CT3",
+                        "stop_id": "place-andrw",
+                        "stop_name": "Andrew",
+                        "direction_id": 0,
+                        "direction_name": "Outbound",
+                    }
+                ],
+            )
+
+            result = await client.get_route_departures(route)
+
+    departure = result["directions"][0]["departures"][0]
+    assert departure["route_id"] == "708"
+    assert departure["route_name"] == "CT3"
+    mock_fetch_pred.assert_awaited_once_with(
+        stop_id="place-andrw",
+        route_id="708",
+        direction_id=0,
+        page_limit=9,
+    )
+
+
+@pytest.mark.asyncio
+async def test_bus_targets_show_next_eight_predictions_sorted_by_eta():
+    client = MBTAClient(api_key="mock_key")
+    now = datetime.now(timezone.utc)
+    prediction_times = [
+        now + timedelta(minutes=minutes)
+        for minutes in [9, 1, 4, 8, 2, 7, 3, 6, 5]
+    ]
+
+    mock_pred_data = {
+        "data": [
+            {
+                "id": f"prediction_{index}",
+                "attributes": {
+                    "arrival_time": prediction_time.isoformat(),
+                    "arrival_uncertainty": None,
+                    "direction_id": 0,
+                },
+                "relationships": {
+                    "route": {"data": {"id": "10"}},
+                    "stop": {"data": {"id": "place-andrw"}},
+                    "trip": {"data": {"id": f"trip_{index}"}},
+                },
+            }
+            for index, prediction_time in enumerate(prediction_times)
+        ],
+        "included": [
+            {"type": "route", "id": "10", "attributes": {"short_name": "10", "color": "FFC72C"}},
+            *[
+                {"type": "trip", "id": f"trip_{index}", "attributes": {"headsign": "City Point"}}
+                for index in range(len(prediction_times))
+            ],
+        ],
+    }
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_cached", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.return_value = mock_pred_data
+            mock_fetch_alerts.return_value = {"data": []}
+
+            route = RouteConfig(
+                id="local_buses",
+                type="bus",
+                stop_id="place-andrw",
+                name="Local Buses",
+                bus_targets=[
+                    {
+                        "route_id": "10",
+                        "route_name": "10",
+                        "stop_id": "place-andrw",
+                        "stop_name": "Andrew",
+                        "direction_id": 0,
+                        "direction_name": "Outbound",
+                    }
+                ],
+            )
+
+            result = await client.get_route_departures(route)
+
+    departures = result["directions"][0]["departures"]
+    assert len(departures) == 8
+    assert [departure["time_iso"] for departure in departures] == [
+        prediction_time.isoformat()
+        for prediction_time in sorted(prediction_times)[:8]
     ]
 
 

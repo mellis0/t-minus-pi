@@ -1,5 +1,5 @@
 server:
-  host: "0.0.0.0"
+  host: "127.0.0.1"
   port: 8000
   refresh_seconds: 20
 
@@ -33,9 +33,27 @@ routes:
       - direction_id: 1
         headsign: "North Station (Inbound)"
 
-  # Bus Example: Harvard Square
-  - id: "harvard_buses"
+  # Bus Example: target-specific live ETAs
+  - id: "local_buses"
     type: "bus"
-    stop_id: "place-harsq"
-    name: "Harvard Square - Buses"
-    route_filter: ["1", "66", "77"]
+    stop_id: "place-andrw"
+    name: "Local Buses"
+    bus_targets:
+      - route_id: "10"
+        route_name: "10"
+        stop_id: "place-andrw"
+        stop_name: "Andrew"
+        direction_id: 0
+        direction_name: "Outbound"
+      - route_id: "10"
+        route_name: "10"
+        stop_id: "place-andrw"
+        stop_name: "Andrew"
+        direction_id: 1
+        direction_name: "Inbound"
+      - route_id: "708"
+        route_name: "CT3"
+        stop_id: "place-andrw"
+        stop_name: "Andrew"
+        direction_id: 0
+        direction_name: "Outbound"

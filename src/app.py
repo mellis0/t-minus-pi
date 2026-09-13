@@ -90,6 +90,17 @@ async def get_dashboard_config():
                 "type": r.type,
                 "stop_id": r.stop_id,
                 "route_id": r.route_id,
+                "bus_targets": [
+                    {
+                        "route_id": target.route_id,
+                        "stop_id": target.stop_id,
+                        "direction_id": target.direction_id,
+                        "route_name": target.route_name,
+                        "direction_name": target.direction_name,
+                        "stop_name": target.stop_name,
+                    }
+                    for target in r.bus_targets
+                ],
             }
             for r in config.routes
         ],

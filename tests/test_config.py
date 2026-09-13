@@ -26,6 +26,17 @@ routes:
         headsign: "South"
       - direction_id: 1
         headsign: "North"
+  - id: "test_buses"
+    type: "bus"
+    stop_id: "place-andrw"
+    name: "Test Buses"
+    bus_targets:
+      - route_id: "708"
+        route_name: "CT3"
+        stop_id: "place-andrw"
+        stop_name: "Andrew"
+        direction_id: 0
+        direction_name: "Outbound"
 """,
         encoding="utf-8",
     )
@@ -41,6 +52,8 @@ routes:
     assert cfg.server.refresh_seconds == 15
     assert cfg.display.title == "Test Transit"
     assert cfg.display.clock_format_24h is True
-    assert len(cfg.routes) == 1
+    assert len(cfg.routes) == 2
     assert cfg.routes[0].id == "test_subway"
     assert cfg.routes[0].directions[0].headsign == "South"
+    assert cfg.routes[1].bus_targets[0].route_id == "708"
+    assert cfg.routes[1].bus_targets[0].route_name == "CT3"

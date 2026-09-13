@@ -11,6 +11,15 @@ class DirectionConfig(BaseModel):
     headsign: Optional[str] = None
 
 
+class BusTargetConfig(BaseModel):
+    route_id: str
+    stop_id: str
+    direction_id: int
+    route_name: Optional[str] = None
+    direction_name: Optional[str] = None
+    stop_name: Optional[str] = None
+
+
 class RouteConfig(BaseModel):
     id: str
     type: str = "subway"  # subway, commuter_rail, bus
@@ -19,10 +28,11 @@ class RouteConfig(BaseModel):
     name: str
     directions: List[DirectionConfig] = Field(default_factory=list)
     route_filter: List[str] = Field(default_factory=list)
+    bus_targets: List[BusTargetConfig] = Field(default_factory=list)
 
 
 class ServerConfig(BaseModel):
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8000
     refresh_seconds: int = 20
 
