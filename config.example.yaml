@@ -16,10 +16,10 @@ routes:
     stop_id: "place-dwnxg"
     name: "Downtown Crossing - Red Line"
     directions:
-      - direction_id: 0
-        headsign: "Ashmont / Braintree (Southbound)"
       - direction_id: 1
         headsign: "Alewife (Northbound)"
+      - direction_id: 0
+        headsign: "Ashmont / Braintree (Southbound)"
 
   # Commuter Rail Example: Fitchburg Line at North Station
   - id: "fitchburg_line"

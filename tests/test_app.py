@@ -32,3 +32,4 @@ async def test_get_config():
     data = response.json()
     assert "title" in data
     assert "refresh_seconds" in data
+    assert "routes" not in data

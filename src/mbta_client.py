@@ -45,18 +45,31 @@ class MBTAClient:
         api_key: Optional[str] = None,
         base_url: str = MBTA_API_BASE_URL,
         alert_cache_ttl_seconds: float = ALERT_CACHE_TTL_SECONDS,
+        http_client: Optional[httpx.AsyncClient] = None,
     ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.alert_cache_ttl_seconds = alert_cache_ttl_seconds
         self._alert_cache: Dict[tuple[Optional[str], Optional[str], tuple[str, ...]], tuple[float, Dict[str, Any]]] = {}
         self._trip_stops_cache: Dict[str, List[Dict[str, str]]] = {}
+        self._http_client = http_client
+        self._owns_http_client = http_client is None
         self.headers = {"Accept": "application/vnd.api+json"}
         if self.api_key:
             self.headers["x-api-key"] = self.api_key
 
     def _get_headers(self) -> Dict[str, str]:
         return self.headers
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(timeout=10.0)
+        return self._http_client
+
+    async def aclose(self) -> None:
+        if self._http_client is not None and self._owns_http_client:
+            await self._http_client.aclose()
+            self._http_client = None
 
     @staticmethod
     def _parse_time(time_str: Optional[str]) -> Optional[datetime]:
@@ -188,14 +201,13 @@ class MBTAClient:
         if page_limit is not None:
             params["page[limit]"] = page_limit
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{self.base_url}/predictions",
-                params=params,
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._get_http_client().get(
+            f"{self.base_url}/predictions",
+            params=params,
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def fetch_schedules_raw(
         self,
@@ -239,14 +251,13 @@ class MBTAClient:
         if page_limit is not None:
             params["page[limit]"] = page_limit
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{self.base_url}/schedules",
-                params=params,
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._get_http_client().get(
+            f"{self.base_url}/schedules",
+            params=params,
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def fetch_trip_schedules_raw(self, trip_ids: List[str]) -> Dict[str, Any]:
         """Fetch scheduled stops for one or more trips."""
@@ -258,14 +269,13 @@ class MBTAClient:
             "sort": "stop_sequence",
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{self.base_url}/schedules",
-                params=params,
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._get_http_client().get(
+            f"{self.base_url}/schedules",
+            params=params,
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     @staticmethod
     def _merge_prediction_data(responses: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -301,14 +311,13 @@ class MBTAClient:
         elif route_filter and len(route_filter) > 0:
             params["filter[route]"] = ",".join(route_filter)
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{self.base_url}/alerts",
-                params=params,
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._get_http_client().get(
+            f"{self.base_url}/alerts",
+            params=params,
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def fetch_alerts_cached(
         self,

@@ -20,6 +20,7 @@ class MockResponse:
 class MockAsyncClient:
     def __init__(self, payload):
         self.get = AsyncMock(return_value=MockResponse(payload))
+        self.aclose = AsyncMock()
 
     async def __aenter__(self):
         return self
@@ -248,6 +249,21 @@ async def test_fetch_predictions_raw_includes_uncertainty_fields_when_needed():
         "arrival_time,departure_time,direction_id,schedule_relationship,status,"
         "route,stop,trip,vehicle,arrival_uncertainty,departure_uncertainty"
     )
+
+
+@pytest.mark.asyncio
+async def test_mbta_client_reuses_async_http_client_and_closes_it():
+    mock_client = MockAsyncClient({"data": []})
+
+    with patch("src.mbta_client.httpx.AsyncClient", return_value=mock_client) as client_factory:
+        client = MBTAClient(api_key="mock_key")
+        await client.fetch_predictions_raw(stop_id="place-andrw", route_id="Red")
+        await client.fetch_alerts_raw(route_id="Red")
+        await client.aclose()
+
+    client_factory.assert_called_once_with(timeout=10.0)
+    assert mock_client.get.await_count == 2
+    mock_client.aclose.assert_awaited_once()
 
 
 @pytest.mark.asyncio

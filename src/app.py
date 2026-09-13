@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 import logging
 from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -44,7 +43,10 @@ async def lifespan(app: FastAPI):
         logger.info("MBTA API key configured.")
     else:
         logger.warning("No MBTA API key provided in .env (running in unauthenticated mode).")
-    yield
+    try:
+        yield
+    finally:
+        await mbta_client.aclose()
 
 
 app = FastAPI(
@@ -52,14 +54,6 @@ app = FastAPI(
     version=__version__,
     description="Lightweight MBTA Real-time Transit Dashboard",
     lifespan=lifespan,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -83,27 +77,6 @@ async def get_dashboard_config():
         "title": config.display.title,
         "clock_format_24h": config.display.clock_format_24h,
         "refresh_seconds": config.server.refresh_seconds,
-        "routes": [
-            {
-                "id": r.id,
-                "name": r.name,
-                "type": r.type,
-                "stop_id": r.stop_id,
-                "route_id": r.route_id,
-                "bus_targets": [
-                    {
-                        "route_id": target.route_id,
-                        "stop_id": target.stop_id,
-                        "direction_id": target.direction_id,
-                        "route_name": target.route_name,
-                        "direction_name": target.direction_name,
-                        "stop_name": target.stop_name,
-                    }
-                    for target in r.bus_targets
-                ],
-            }
-            for r in config.routes
-        ],
     }
 
 

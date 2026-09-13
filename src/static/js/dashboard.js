@@ -235,7 +235,11 @@ async function init() {
 
   // Initial fetch and polling loop
   await fetchDepartures();
-  setInterval(fetchDepartures, CONFIG.refreshIntervalMs);
+  async function pollDepartures() {
+    await fetchDepartures();
+    setTimeout(pollDepartures, CONFIG.refreshIntervalMs);
+  }
+  setTimeout(pollDepartures, CONFIG.refreshIntervalMs);
 }
 
 document.addEventListener("DOMContentLoaded", init);

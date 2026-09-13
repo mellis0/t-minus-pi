@@ -56,8 +56,6 @@ Set your API key in `.env`:
 
 ```env
 MBTA_API_KEY=your_api_key_here
-PORT=8000
-HOST=127.0.0.1
 ```
 
 ### Route Configuration
@@ -74,7 +72,7 @@ Example configuration structure:
 server:
   host: "127.0.0.1"
   port: 8000
-  refresh_seconds: 20
+  refresh_seconds: 10
 
 display:
   title: "MBTA Transit Departures"
@@ -89,10 +87,10 @@ routes:
     stop_id: "place-dwnxg"
     name: "Downtown Crossing - Red Line"
     directions:
-      - direction_id: 0
-        headsign: "Ashmont / Braintree (Southbound)"
       - direction_id: 1
         headsign: "Alewife (Northbound)"
+      - direction_id: 0
+        headsign: "Ashmont / Braintree (Southbound)"
 
   # Commuter Rail Example: Fitchburg Line at North Station
   - id: "fitchburg_line"
@@ -141,6 +139,12 @@ python -m uvicorn src.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 The dashboard will be accessible at `http://localhost:8000`.
+
+## Deployment
+
+For Raspberry Pi kiosk deployments, install the systemd service in `systemd/t-minus-pi.service` and use `scripts/setup_kiosk.sh` to configure Chromium kiosk autostart.
+
+The bundled service binds Uvicorn to `127.0.0.1:8000`, so the dashboard is only exposed on the device itself by default. The kiosk script opens `http://localhost:8000` in fullscreen Chromium.
 
 ## License
 
