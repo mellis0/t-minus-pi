@@ -20,7 +20,7 @@ cat << 'EOF' > "$AUTOSTART_DIR/t-minus-pi-kiosk.desktop"
 [Desktop Entry]
 Type=Application
 Name=t-minus-pi Dashboard
-Exec=bash -c "sleep 5 && chromium-browser --noerrdialogs --disable-infobars --kiosk http://localhost:8000 --check-for-update-interval=31536000"
+Exec=bash -c "sleep 5 && chromium-browser --force-device-scale-factor=2 --noerrdialogs --disable-infobars --kiosk http://localhost:8000 --check-for-update-interval=31536000"
 X-GNOME-Autostart-enabled=true
 EOF
 
