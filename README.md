@@ -142,13 +142,14 @@ The dashboard will be accessible at `http://localhost:8000`.
 
 ## Deployment
 
-The repository includes a systemd service for the backend and a kiosk setup script for Chromium. The bundled service template assumes the project is installed at `/home/pi/t-minus-pi` and runs as user `pi`. If your Pi uses a different user or project path, edit `User`, `WorkingDirectory`, `ExecStart`, and `EnvironmentFile` in `systemd/t-minus-pi.service` before installing it.
+The repository includes an example systemd service for the backend and a kiosk setup script for Chromium. The bundled service template assumes the project is installed at `/home/pi/t-minus-pi` and runs as user `pi`. If your Pi uses a different user or project path, copy the example service into `/etc/systemd/system`, then edit the installed service file so `User`, `WorkingDirectory`, `ExecStart`, and `EnvironmentFile` match your device.
 
 Install and start the backend service:
 
 ```bash
 cd /home/pi/t-minus-pi
-sudo cp systemd/t-minus-pi.service /etc/systemd/system/t-minus-pi.service
+sudo cp systemd/t-minus-pi.service.example /etc/systemd/system/t-minus-pi.service
+sudo nano /etc/systemd/system/t-minus-pi.service
 sudo systemctl daemon-reload
 sudo systemctl enable t-minus-pi
 sudo systemctl start t-minus-pi
@@ -189,10 +190,9 @@ ls -l /home/pi/t-minus-pi/.venv/bin/python
 sudo systemctl cat t-minus-pi
 ```
 
-If you edit the service file in the repo, reinstall it before restarting:
+If you edit the installed service file, reload systemd before restarting:
 
 ```bash
-sudo cp /home/pi/t-minus-pi/systemd/t-minus-pi.service /etc/systemd/system/t-minus-pi.service
 sudo systemctl daemon-reload
 sudo systemctl restart t-minus-pi
 sudo systemctl cat t-minus-pi
