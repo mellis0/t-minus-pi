@@ -29,6 +29,36 @@ class MockAsyncClient:
         pass
 
 
+def make_prediction(
+    prediction_id,
+    direction_id,
+    trip_id,
+    arrival_time=None,
+    departure_time=None,
+    schedule_relationship=None,
+    headsign="Alewife",
+):
+    return {
+        "id": prediction_id,
+        "attributes": {
+            "arrival_time": arrival_time,
+            "departure_time": departure_time,
+            "direction_id": direction_id,
+            "schedule_relationship": schedule_relationship,
+            "status": None,
+        },
+        "relationships": {
+            "route": {"data": {"id": "Red"}},
+            "stop": {"data": {"id": "70084" if direction_id == 1 else "70083"}},
+            "trip": {"data": {"id": trip_id}},
+        },
+    }, {
+        "type": "trip",
+        "id": trip_id,
+        "attributes": {"headsign": headsign},
+    }
+
+
 def test_format_countdown():
     now = datetime.now(timezone.utc)
 
@@ -453,6 +483,231 @@ async def test_get_route_departures_mocked():
                     page_limit=4,
                 ),
             ])
+
+
+@pytest.mark.asyncio
+async def test_get_route_departures_does_not_retry_when_first_page_has_enough_usable_predictions():
+    client = MBTAClient(api_key="mock_key")
+    now = datetime.now(timezone.utc)
+    predictions = []
+    included = []
+    for index in range(3):
+        prediction, trip = make_prediction(
+            f"prediction_{index}",
+            1,
+            f"trip_{index}",
+            arrival_time=(now + timedelta(minutes=index + 3)).isoformat(),
+            departure_time=(now + timedelta(minutes=index + 3, seconds=10)).isoformat(),
+        )
+        predictions.append(prediction)
+        included.append(trip)
+
+    mock_pred_data = {"data": predictions, "included": included}
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_raw", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.return_value = mock_pred_data
+            mock_fetch_alerts.return_value = {"data": []}
+
+            route = RouteConfig(
+                id="red_line",
+                route_id="Red",
+                stop_id="place-andrw",
+                name="Andrew - Red Line",
+                directions=[DirectionConfig(direction_id=1, headsign="Alewife")],
+            )
+
+            result = await client.get_route_departures(route)
+
+    assert result["error"] is None
+    assert len(result["directions"][0]["departures"]) == 3
+    mock_fetch_pred.assert_awaited_once_with(
+        stop_id="place-andrw",
+        route_id="Red",
+        route_filter=[],
+        direction_id=1,
+        page_limit=4,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_route_departures_retries_without_page_limit_when_first_page_is_crowded_by_unviable_predictions():
+    client = MBTAClient(api_key="mock_key")
+    now = datetime.now(timezone.utc)
+    first_page_predictions = []
+    first_page_included = []
+    for index in range(3):
+        prediction, trip = make_prediction(
+            f"cancelled_{index}",
+            1,
+            f"cancelled_trip_{index}",
+            schedule_relationship="CANCELLED",
+        )
+        first_page_predictions.append(prediction)
+        first_page_included.append(trip)
+    usable_prediction, usable_trip = make_prediction(
+        "usable_first_page",
+        1,
+        "usable_first_page_trip",
+        arrival_time=(now + timedelta(minutes=3)).isoformat(),
+        departure_time=(now + timedelta(minutes=3, seconds=10)).isoformat(),
+    )
+    first_page_predictions.append(usable_prediction)
+    first_page_included.append(usable_trip)
+
+    retry_predictions = []
+    retry_included = []
+    for index in range(3):
+        prediction, trip = make_prediction(
+            f"usable_retry_{index}",
+            1,
+            f"usable_retry_trip_{index}",
+            arrival_time=(now + timedelta(minutes=index + 4)).isoformat(),
+            departure_time=(now + timedelta(minutes=index + 4, seconds=10)).isoformat(),
+        )
+        retry_predictions.append(prediction)
+        retry_included.append(trip)
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_raw", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.side_effect = [
+                {"data": first_page_predictions, "included": first_page_included},
+                {"data": retry_predictions, "included": retry_included},
+            ]
+            mock_fetch_alerts.return_value = {"data": []}
+
+            route = RouteConfig(
+                id="red_line",
+                route_id="Red",
+                stop_id="place-andrw",
+                name="Andrew - Red Line",
+                directions=[DirectionConfig(direction_id=1, headsign="Alewife")],
+            )
+
+            result = await client.get_route_departures(route)
+
+    assert result["error"] is None
+    assert len(result["directions"][0]["departures"]) == 3
+    assert [
+        departure["time_iso"]
+        for departure in result["directions"][0]["departures"]
+    ] == [
+        prediction["attributes"]["arrival_time"]
+        for prediction in retry_predictions
+    ]
+    mock_fetch_pred.assert_has_awaits([
+        call(
+            stop_id="place-andrw",
+            route_id="Red",
+            route_filter=[],
+            direction_id=1,
+            page_limit=4,
+        ),
+        call(
+            stop_id="place-andrw",
+            route_id="Red",
+            route_filter=[],
+            direction_id=1,
+            page_limit=None,
+        ),
+    ])
+
+
+@pytest.mark.asyncio
+async def test_get_route_departures_does_not_retry_when_short_first_page_has_unviable_predictions():
+    client = MBTAClient(api_key="mock_key")
+    now = datetime.now(timezone.utc)
+    cancelled_prediction, cancelled_trip = make_prediction(
+        "cancelled",
+        1,
+        "cancelled_trip",
+        schedule_relationship="CANCELLED",
+    )
+    usable_prediction, usable_trip = make_prediction(
+        "usable",
+        1,
+        "usable_trip",
+        arrival_time=(now + timedelta(minutes=3)).isoformat(),
+        departure_time=(now + timedelta(minutes=3, seconds=10)).isoformat(),
+    )
+    mock_pred_data = {
+        "data": [cancelled_prediction, usable_prediction],
+        "included": [cancelled_trip, usable_trip],
+    }
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_raw", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.return_value = mock_pred_data
+            mock_fetch_alerts.return_value = {"data": []}
+
+            route = RouteConfig(
+                id="red_line",
+                route_id="Red",
+                stop_id="place-andrw",
+                name="Andrew - Red Line",
+                directions=[DirectionConfig(direction_id=1, headsign="Alewife")],
+            )
+
+            result = await client.get_route_departures(route)
+
+    assert result["error"] is None
+    assert len(result["directions"][0]["departures"]) == 1
+    mock_fetch_pred.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_route_departures_remains_empty_when_unbounded_retry_has_no_usable_predictions():
+    client = MBTAClient(api_key="mock_key")
+    first_page_predictions = []
+    first_page_included = []
+    retry_predictions = []
+    retry_included = []
+    for index in range(4):
+        prediction, trip = make_prediction(
+            f"cancelled_{index}",
+            1,
+            f"cancelled_trip_{index}",
+            schedule_relationship="CANCELLED",
+        )
+        first_page_predictions.append(prediction)
+        first_page_included.append(trip)
+    for index in range(2):
+        prediction, trip = make_prediction(
+            f"retry_cancelled_{index}",
+            1,
+            f"retry_cancelled_trip_{index}",
+            schedule_relationship="CANCELLED",
+        )
+        retry_predictions.append(prediction)
+        retry_included.append(trip)
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_raw", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.side_effect = [
+                {"data": first_page_predictions, "included": first_page_included},
+                {"data": retry_predictions, "included": retry_included},
+            ]
+            mock_fetch_alerts.return_value = {"data": []}
+
+            route = RouteConfig(
+                id="red_line",
+                route_id="Red",
+                stop_id="place-andrw",
+                name="Andrew - Red Line",
+                directions=[DirectionConfig(direction_id=1, headsign="Alewife")],
+            )
+
+            result = await client.get_route_departures(route)
+
+    assert result["error"] is None
+    assert result["directions"][0]["departures"] == []
+    assert mock_fetch_pred.await_args_list[-1] == call(
+        stop_id="place-andrw",
+        route_id="Red",
+        route_filter=[],
+        direction_id=1,
+        page_limit=None,
+    )
 
 
 def test_merge_prediction_data_deduplicates_included_resources():

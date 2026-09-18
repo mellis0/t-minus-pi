@@ -140,6 +140,19 @@ class MBTAClient:
         return None
 
     @staticmethod
+    def _has_prediction_time(prediction: Dict[str, Any]) -> bool:
+        attrs = prediction.get("attributes") or {}
+        return bool(attrs.get("arrival_time") or attrs.get("departure_time"))
+
+    @staticmethod
+    def _is_unviable_prediction(prediction: Dict[str, Any]) -> bool:
+        attrs = prediction.get("attributes") or {}
+        return (
+            attrs.get("schedule_relationship") == "CANCELLED"
+            or not MBTAClient._has_prediction_time(prediction)
+        )
+
+    @staticmethod
     def _get_schedule_time_filters(now: Optional[datetime] = None) -> Dict[str, str]:
         """Build MBTA schedule filters for upcoming service-day times."""
         local_now = (now or datetime.now(timezone.utc)).astimezone(MBTA_SERVICE_TIMEZONE)
@@ -909,6 +922,7 @@ class MBTAClient:
                     dir_overrides[d.direction_id] = d.headsign
 
             configured_dirs = [d.direction_id for d in route_config.directions] or [0, 1]
+            initial_page_limit = max_per_direction + PREDICTION_FETCH_BUFFER
 
             # 1. Fetch Predictions
             prediction_responses = await asyncio.gather(*[
@@ -917,24 +931,28 @@ class MBTAClient:
                     route_id=route_config.route_id,
                     route_filter=route_config.route_filter,
                     direction_id=d_id,
-                    page_limit=max_per_direction + PREDICTION_FETCH_BUFFER,
+                    page_limit=initial_page_limit,
                 )
                 for d_id in configured_dirs
             ])
-            pred_data = self._merge_prediction_data(prediction_responses)
+
+            prediction_data_by_direction = {
+                d_id: response
+                for d_id, response in zip(configured_dirs, prediction_responses)
+            }
 
             # 2. Fetch Alerts
             alert_data = await self.fetch_alerts_cached(
                 **self._alert_filter_kwargs_for_route(route_config),
             )
 
+            pred_data = self._merge_prediction_data(list(prediction_data_by_direction.values()))
             included = self._build_included_map(pred_data.get("included", []))
             predictions = pred_data.get("data", []) or []
 
             result["alerts"] = self._parse_alerts(alert_data)
 
-            directions_map: Dict[int, List[Dict[str, Any]]] = {0: [], 1: []}
-
+            directions_map: Dict[int, List[Dict[str, Any]]] = {d_id: [] for d_id in configured_dirs}
             for p in predictions:
                 entry = self._prediction_to_entry(p, included, dir_overrides)
                 if not entry:
@@ -945,6 +963,50 @@ class MBTAClient:
                 if direction_id not in directions_map:
                     directions_map[direction_id] = []
                 directions_map[direction_id].append(entry)
+
+            retry_dirs = []
+            for d_id in configured_dirs:
+                raw_predictions = prediction_data_by_direction[d_id].get("data", []) or []
+                unviable_count = sum(
+                    1
+                    for prediction in raw_predictions
+                    if self._is_unviable_prediction(prediction)
+                )
+                if (
+                    len(directions_map.get(d_id, [])) < max_per_direction
+                    and len(raw_predictions) == initial_page_limit
+                    and unviable_count > 0
+                ):
+                    retry_dirs.append(d_id)
+
+            if retry_dirs:
+                retry_responses = await asyncio.gather(*[
+                    self.fetch_predictions_raw(
+                        stop_id=route_config.stop_id,
+                        route_id=route_config.route_id,
+                        route_filter=route_config.route_filter,
+                        direction_id=d_id,
+                        page_limit=None,
+                    )
+                    for d_id in retry_dirs
+                ])
+                for d_id, response in zip(retry_dirs, retry_responses):
+                    prediction_data_by_direction[d_id] = response
+
+                pred_data = self._merge_prediction_data(list(prediction_data_by_direction.values()))
+                included = self._build_included_map(pred_data.get("included", []))
+                directions_map = {d_id: [] for d_id in configured_dirs}
+
+                for p in pred_data.get("data", []) or []:
+                    entry = self._prediction_to_entry(p, included, dir_overrides)
+                    if not entry:
+                        continue
+
+                    direction_id = (p.get("attributes") or {}).get("direction_id", 0)
+
+                    if direction_id not in directions_map:
+                        directions_map[direction_id] = []
+                    directions_map[direction_id].append(entry)
 
             for d_id in configured_dirs:
                 entries = directions_map.get(d_id, [])
