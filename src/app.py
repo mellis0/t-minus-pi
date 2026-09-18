@@ -77,6 +77,7 @@ async def get_dashboard_config():
         "title": config.display.title,
         "clock_format_24h": config.display.clock_format_24h,
         "refresh_seconds": config.server.refresh_seconds,
+        "show_alerts": config.display.show_alerts,
     }
 
 
@@ -86,6 +87,7 @@ async def get_departures():
     data = await mbta_client.get_all_departures(
         config.routes,
         max_per_direction=config.display.max_predictions_per_direction,
+        include_alerts=config.display.show_alerts,
     )
     return {
         "updated_at": datetime.now(timezone.utc).isoformat(),

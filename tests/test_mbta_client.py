@@ -486,6 +486,35 @@ async def test_get_route_departures_mocked():
 
 
 @pytest.mark.asyncio
+async def test_get_route_departures_skips_alert_fetch_when_alerts_disabled():
+    client = MBTAClient(api_key="mock_key")
+    now = datetime.now(timezone.utc)
+    prediction, trip = make_prediction(
+        "prediction_1",
+        1,
+        "trip_1",
+        arrival_time=(now + timedelta(minutes=4)).isoformat(),
+    )
+
+    with patch.object(client, "fetch_predictions_raw", new_callable=AsyncMock) as mock_fetch_pred:
+        with patch.object(client, "fetch_alerts_cached", new_callable=AsyncMock) as mock_fetch_alerts:
+            mock_fetch_pred.return_value = {"data": [prediction], "included": [trip]}
+            route = RouteConfig(
+                id="red_line",
+                route_id="Red",
+                stop_id="place-andrw",
+                name="Andrew - Red Line",
+                directions=[DirectionConfig(direction_id=1, headsign="Alewife")],
+            )
+
+            result = await client.get_route_departures(route, include_alerts=False)
+
+    assert result["error"] is None
+    assert result["alerts"] == []
+    mock_fetch_alerts.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_get_route_departures_does_not_retry_when_first_page_has_enough_usable_predictions():
     client = MBTAClient(api_key="mock_key")
     now = datetime.now(timezone.utc)

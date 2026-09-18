@@ -673,6 +673,7 @@ class MBTAClient:
         self,
         route_config: RouteConfig,
         max_per_direction: int,
+        include_alerts: bool = True,
     ) -> Dict[str, Any]:
         """Fetch commuter rail departures from schedules, overlaid with predictions."""
         result: Dict[str, Any] = {
@@ -695,24 +696,23 @@ class MBTAClient:
             configured_dirs = [d.direction_id for d in route_config.directions] or [0, 1]
             page_limit = max_per_direction + PREDICTION_FETCH_BUFFER + 3
 
-            schedule_responses, alert_data = await asyncio.gather(
-                asyncio.gather(*[
-                    self.fetch_schedules_raw(
-                        stop_id=route_config.stop_id,
-                        route_id=route_config.route_id,
-                        route_filter=route_config.route_filter,
-                        direction_id=d_id,
-                        page_limit=page_limit,
-                    )
-                    for d_id in configured_dirs
-                ]),
-                self.fetch_alerts_cached(
+            schedule_responses = await asyncio.gather(*[
+                self.fetch_schedules_raw(
+                    stop_id=route_config.stop_id,
+                    route_id=route_config.route_id,
+                    route_filter=route_config.route_filter,
+                    direction_id=d_id,
+                    page_limit=page_limit,
+                )
+                for d_id in configured_dirs
+            ])
+            if include_alerts:
+                alert_data = await self.fetch_alerts_cached(
                     **self._alert_filter_kwargs_for_route(route_config),
-                ),
-            )
+                )
+                result["alerts"] = self._parse_alerts(alert_data)
 
             schedule_data = self._merge_prediction_data(schedule_responses)
-            result["alerts"] = self._parse_alerts(alert_data)
 
             included_list = schedule_data.get("included", []) or []
             included = self._build_included_map(included_list)
@@ -804,6 +804,7 @@ class MBTAClient:
         self,
         route_config: RouteConfig,
         max_per_direction: int,
+        include_alerts: bool = True,
     ) -> Dict[str, Any]:
         """Fetch live bus ETAs for configured route/stop/direction targets."""
         result: Dict[str, Any] = {
@@ -865,20 +866,21 @@ class MBTAClient:
                 ],
             })
 
-            target_route_ids = list(dict.fromkeys(target.route_id for target in targets))
-            alert_responses = [
-                await self.fetch_alerts_cached(route_filter=target_route_ids)
-            ]
-            seen_alerts = set()
-            parsed_alerts: List[Dict[str, Any]] = []
-            for alert_data in alert_responses:
-                for alert in self._parse_alerts(alert_data):
-                    key = alert.get("id") or alert.get("header")
-                    if key in seen_alerts:
-                        continue
-                    seen_alerts.add(key)
-                    parsed_alerts.append(alert)
-            result["alerts"] = parsed_alerts
+            if include_alerts:
+                target_route_ids = list(dict.fromkeys(target.route_id for target in targets))
+                alert_responses = [
+                    await self.fetch_alerts_cached(route_filter=target_route_ids)
+                ]
+                seen_alerts = set()
+                parsed_alerts: List[Dict[str, Any]] = []
+                for alert_data in alert_responses:
+                    for alert in self._parse_alerts(alert_data):
+                        key = alert.get("id") or alert.get("header")
+                        if key in seen_alerts:
+                            continue
+                        seen_alerts.add(key)
+                        parsed_alerts.append(alert)
+                result["alerts"] = parsed_alerts
 
         except Exception as e:
             logger.error(f"Error fetching bus target departures for {route_config.id}: {e}", exc_info=True)
@@ -890,6 +892,7 @@ class MBTAClient:
         self,
         route_config: RouteConfig,
         max_per_direction: int = 3,
+        include_alerts: bool = True,
     ) -> Dict[str, Any]:
         """Fetch and process structured departure cards and alerts for a single route config."""
         result: Dict[str, Any] = {
@@ -908,11 +911,13 @@ class MBTAClient:
                 return await self._get_commuter_rail_departures(
                     route_config,
                     max_per_direction=max_per_direction,
+                    include_alerts=include_alerts,
                 )
             if route_config.type == "bus" and route_config.bus_targets:
                 return await self._get_bus_target_departures(
                     route_config,
                     max_per_direction=max_per_direction,
+                    include_alerts=include_alerts,
                 )
 
             # Group predictions by direction or route
@@ -942,15 +947,15 @@ class MBTAClient:
             }
 
             # 2. Fetch Alerts
-            alert_data = await self.fetch_alerts_cached(
-                **self._alert_filter_kwargs_for_route(route_config),
-            )
+            if include_alerts:
+                alert_data = await self.fetch_alerts_cached(
+                    **self._alert_filter_kwargs_for_route(route_config),
+                )
+                result["alerts"] = self._parse_alerts(alert_data)
 
             pred_data = self._merge_prediction_data(list(prediction_data_by_direction.values()))
             included = self._build_included_map(pred_data.get("included", []))
             predictions = pred_data.get("data", []) or []
-
-            result["alerts"] = self._parse_alerts(alert_data)
 
             directions_map: Dict[int, List[Dict[str, Any]]] = {d_id: [] for d_id in configured_dirs}
             for p in predictions:
@@ -1033,10 +1038,15 @@ class MBTAClient:
         self,
         routes: List[RouteConfig],
         max_per_direction: int = 3,
+        include_alerts: bool = True,
     ) -> List[Dict[str, Any]]:
         """Fetch departures for all configured routes concurrently."""
         results = []
         for route in routes:
-            card = await self.get_route_departures(route, max_per_direction=max_per_direction)
+            card = await self.get_route_departures(
+                route,
+                max_per_direction=max_per_direction,
+                include_alerts=include_alerts,
+            )
             results.append(card)
         return results

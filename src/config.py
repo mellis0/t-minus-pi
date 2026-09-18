@@ -41,6 +41,7 @@ class DisplayConfig(BaseModel):
     title: str = "MBTA Transit Departures"
     clock_format_24h: bool = False
     max_predictions_per_direction: int = 3
+    show_alerts: bool = True
 
 
 class AppConfig(BaseModel):

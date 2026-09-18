@@ -78,6 +78,7 @@ display:
   title: "MBTA Transit Departures"
   clock_format_24h: false
   max_predictions_per_direction: 3
+  show_alerts: true
 
 routes:
   # Subway Example: Red Line

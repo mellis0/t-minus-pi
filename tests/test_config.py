@@ -14,6 +14,7 @@ server:
 display:
   title: "Test Transit"
   clock_format_24h: true
+  show_alerts: false
 
 routes:
   - id: "test_subway"
@@ -52,6 +53,7 @@ routes:
     assert cfg.server.refresh_seconds == 15
     assert cfg.display.title == "Test Transit"
     assert cfg.display.clock_format_24h is True
+    assert cfg.display.show_alerts is False
     assert len(cfg.routes) == 2
     assert cfg.routes[0].id == "test_subway"
     assert cfg.routes[0].directions[0].headsign == "South"
