@@ -79,6 +79,7 @@ display:
   clock_format_24h: false
   max_predictions_per_direction: 3
   show_alerts: true
+  primary_text_scale: 1.0
 
 routes:
   # Subway Example: Red Line
@@ -168,6 +169,15 @@ sudo reboot
 The service binds Uvicorn to `127.0.0.1:8000`, so the dashboard is only exposed on the device itself by default. The kiosk script opens `http://localhost:8000` in fullscreen Chromium after desktop login.
 
 To temporarily exit kiosk mode, press `Alt+F4`, or switch to a text console with `Ctrl+Alt+F2`. Return to the desktop with `Ctrl+Alt+F7` or `Ctrl+Alt+F1`, depending on the Raspberry Pi OS version.
+
+To adjust the dashboard size on the Pi, use Chromium's normal zoom controls while the dashboard is open:
+
+```text
+Ctrl++  zoom in
+Ctrl+-  zoom out
+```
+
+Chromium preserves the zoom setting for the dashboard URL, so the chosen zoom level will persist across reboots.
 
 To turn kiosk mode off:
 

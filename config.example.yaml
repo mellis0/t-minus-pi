@@ -8,6 +8,7 @@ display:
   clock_format_24h: false
   max_predictions_per_direction: 3
   show_alerts: true
+  primary_text_scale: 1.0
 
 routes:
   # Subway Example: Red Line

@@ -78,6 +78,7 @@ async def get_dashboard_config():
         "clock_format_24h": config.display.clock_format_24h,
         "refresh_seconds": config.server.refresh_seconds,
         "show_alerts": config.display.show_alerts,
+        "primary_text_scale": config.display.primary_text_scale,
     }
 
 
@@ -104,5 +105,6 @@ async def serve_dashboard(request: Request):
         context={
             "title": config.display.title,
             "refresh_seconds": config.server.refresh_seconds,
+            "primary_text_scale": config.display.primary_text_scale,
         },
     )

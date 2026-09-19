@@ -15,6 +15,7 @@ display:
   title: "Test Transit"
   clock_format_24h: true
   show_alerts: false
+  primary_text_scale: 1.25
 
 routes:
   - id: "test_subway"
@@ -54,6 +55,7 @@ routes:
     assert cfg.display.title == "Test Transit"
     assert cfg.display.clock_format_24h is True
     assert cfg.display.show_alerts is False
+    assert cfg.display.primary_text_scale == 1.25
     assert len(cfg.routes) == 2
     assert cfg.routes[0].id == "test_subway"
     assert cfg.routes[0].directions[0].headsign == "South"

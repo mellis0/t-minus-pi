@@ -42,6 +42,7 @@ class DisplayConfig(BaseModel):
     clock_format_24h: bool = False
     max_predictions_per_direction: int = 3
     show_alerts: bool = True
+    primary_text_scale: float = Field(default=1.0, ge=0.8, le=1.8)
 
 
 class AppConfig(BaseModel):

@@ -194,8 +194,12 @@ body {
 }
 
 .card-title {
-  font-size: 1.2rem;
+  font-size: calc(1.2rem * var(--primary-text-scale, 1));
   font-weight: 700;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-body {
@@ -264,7 +268,7 @@ body {
 }
 
 .departure-headsign {
-  font-size: 1.05rem;
+  font-size: calc(1.05rem * var(--primary-text-scale, 1));
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -327,18 +331,18 @@ body {
 }
 
 .departure-time-clock {
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--primary-text-scale, 1));
   color: var(--text-secondary);
 }
 
 .countdown-badge {
-  font-size: 1.15rem;
+  font-size: calc(1.15rem * var(--primary-text-scale, 1));
   font-weight: 800;
   padding: 0.25rem 0.65rem;
   border-radius: 6px;
   background-color: #272d3a;
   color: var(--text-primary);
-  min-width: 4.5rem;
+  min-width: calc(4.5rem * var(--primary-text-scale, 1));
   text-align: center;
 }
 
