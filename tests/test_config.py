@@ -61,3 +61,33 @@ routes:
     assert cfg.routes[0].directions[0].headsign == "South"
     assert cfg.routes[1].bus_targets[0].route_id == "708"
     assert cfg.routes[1].bus_targets[0].route_name == "CT3"
+
+
+def test_primary_text_scale_is_clamped(tmp_path: Path):
+    yaml_file = tmp_path / "config.yaml"
+    yaml_file.write_text(
+        """
+display:
+  primary_text_scale: 4.0
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path=yaml_file, env_path=tmp_path / ".env")
+
+    assert cfg.display.primary_text_scale == 3.0
+
+
+def test_invalid_primary_text_scale_uses_default(tmp_path: Path):
+    yaml_file = tmp_path / "config.yaml"
+    yaml_file.write_text(
+        """
+display:
+  primary_text_scale: huge
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path=yaml_file, env_path=tmp_path / ".env")
+
+    assert cfg.display.primary_text_scale == 1.0

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 import yaml
 from dotenv import dotenv_values, load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class DirectionConfig(BaseModel):
@@ -42,7 +42,18 @@ class DisplayConfig(BaseModel):
     clock_format_24h: bool = False
     max_predictions_per_direction: int = 3
     show_alerts: bool = True
-    primary_text_scale: float = Field(default=1.0, ge=0.8, le=1.8)
+    primary_text_scale: float = 1.0
+
+    @field_validator("primary_text_scale", mode="before")
+    @classmethod
+    def clamp_primary_text_scale(cls, value):
+        if value is None:
+            return 1.0
+        try:
+            scale = float(value)
+        except (TypeError, ValueError):
+            return 1.0
+        return min(max(scale, 0.8), 3.0)
 
 
 class AppConfig(BaseModel):
