@@ -1,4 +1,5 @@
 import os
+import math
 from pathlib import Path
 from typing import List, Optional
 import yaml
@@ -53,7 +54,9 @@ class DisplayConfig(BaseModel):
             scale = float(value)
         except (TypeError, ValueError):
             return 1.0
-        return min(max(scale, 0.8), 3.0)
+        if not math.isfinite(scale):
+            return 1.0
+        return max(scale, 0.8)
 
 
 class AppConfig(BaseModel):

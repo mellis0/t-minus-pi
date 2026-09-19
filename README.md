@@ -132,7 +132,7 @@ routes:
         direction_name: "Outbound"
 ```
 
-Use `display.primary_text_scale` to enlarge the station names and ETA values without changing the header title or clock. The default is `1.0`; values below `0.8` or above `3.0` are capped automatically so an oversized setting does not prevent the app from starting. Values above `1.8` can cause unexpected layout behavior, including clipping, overflow, or content being pushed off screen.
+Use `display.primary_text_scale` to enlarge the station names and ETA values without changing the header title or clock. The default is `1.0`; values below `0.8` are raised to `0.8`, and invalid values fall back to `1.0`. There is no enforced maximum, so choose large values carefully: values above `1.8` can cause unexpected layout behavior, including clipping, overflow, or content being pushed off screen.
 
 ### Running the Application
 
