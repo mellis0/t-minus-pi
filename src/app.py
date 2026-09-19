@@ -21,6 +21,7 @@ logger = logging.getLogger("t-minus-pi")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
+STYLESHEET_PATH = STATIC_DIR / "css" / "styles.css"
 
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,6 +100,7 @@ async def get_departures():
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard(request: Request):
     """Render the dashboard UI."""
+    stylesheet_version = int(STYLESHEET_PATH.stat().st_mtime)
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -106,5 +108,6 @@ async def serve_dashboard(request: Request):
             "title": config.display.title,
             "refresh_seconds": config.server.refresh_seconds,
             "primary_text_scale": config.display.primary_text_scale,
+            "stylesheet_version": stylesheet_version,
         },
     )

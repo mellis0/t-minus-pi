@@ -17,6 +17,7 @@ async def test_get_root_dashboard(monkeypatch):
     assert response.status_code == 200
     assert "text/html" in response.headers.get("content-type", "")
     assert "<title>" in response.text
+    assert '/static/css/styles.css?v=' in response.text
     assert "--primary-text-scale: 1.25;" in response.text
 
 
