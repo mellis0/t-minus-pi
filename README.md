@@ -14,9 +14,17 @@ Tracked stops, routes, directions, and display names are fully customizable thro
 
 ## Target Hardware and Environment
 
-- Device: Raspberry Pi 4 (4GB RAM) running Raspberry Pi OS.
-- Display: 1080p (1920x1080) HDMI portable monitor.
+- Device used: CanaKit Raspberry Pi 4 Starter PRO Kit - 4GB RAM, running Raspberry Pi OS.
+- Display used: InnoView 15.6 Inch Portable Monitor, 1080p (1920x1080).
 - Display Mode: Fullscreen Chromium kiosk mode with screen blanking disabled.
+
+These are the parts used for this build, but t-minus-pi should work on similar Raspberry Pi hardware and HDMI displays.
+
+## Hardware Setup
+
+![t-minus-pi Raspberry Pi dashboard mounted on a wall](docs/assets/Wall_Mounted_t-minus-pi.jpeg)
+
+The dashboard is intended for a small always-on display mounted where commute information is useful at a glance. In my setup, I changed the Raspberry Pi display to a vertical orientation and mounted the display vertically on the wall. The Raspberry Pi runs the backend locally and Chromium opens the dashboard in fullscreen kiosk mode.
 
 ## Getting Started
 
@@ -153,7 +161,7 @@ Install and start the backend service:
 ```bash
 cd /home/pi/t-minus-pi
 sudo cp systemd/t-minus-pi.service.example /etc/systemd/system/t-minus-pi.service
-sudo nano /etc/systemd/system/t-minus-pi.service
+sudo nano /etc/systemd/system/t-minus-pi.service # Edit the paths in the service file, if necessary
 sudo systemctl daemon-reload
 sudo systemctl enable t-minus-pi
 sudo systemctl start t-minus-pi
