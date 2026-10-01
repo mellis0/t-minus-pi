@@ -454,6 +454,11 @@ body {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
 
 @media (max-width: 900px) {
   .dashboard-container {

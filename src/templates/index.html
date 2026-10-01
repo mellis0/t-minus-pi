@@ -12,10 +12,6 @@
     <header class="header">
       <div class="header-left">
         <h1 class="dashboard-title">{{ title }}</h1>
-        <div class="status-indicator">
-          <span class="status-dot online" id="statusDot"></span>
-          <span class="status-text" id="statusText">Live</span>
-        </div>
       </div>
       <div class="header-right">
         <div class="clock-date" id="clockDate">--</div>
@@ -37,7 +33,13 @@
     <!-- Footer -->
     <footer class="footer">
       <div class="footer-left">t-minus-pi</div>
-      <div class="footer-right" id="lastUpdated">Last updated: --</div>
+      <div class="footer-right">
+        <div class="status-indicator">
+          <span class="status-dot online" id="statusDot"></span>
+          <span class="status-text" id="statusText">Live</span>
+        </div>
+        <div id="lastUpdated">Last updated: --</div>
+      </div>
     </footer>
   </div>
 
