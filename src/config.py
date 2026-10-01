@@ -48,22 +48,42 @@ class DisplayConfig(BaseModel):
     @field_validator("primary_text_scale", mode="before")
     @classmethod
     def clamp_primary_text_scale(cls, value):
-        if value is None:
-            return 1.0
-        try:
-            scale = float(value)
-        except (TypeError, ValueError):
-            return 1.0
-        if not math.isfinite(scale):
-            return 1.0
-        return max(scale, 0.8)
+        return _coerce_text_scale(value)
+
+
+class WeatherConfig(BaseModel):
+    enabled: bool = False
+    label: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    refresh_seconds: int = 600
+    text_scale: float = 1.0
+
+    @field_validator("text_scale", mode="before")
+    @classmethod
+    def clamp_text_scale(cls, value):
+        return _coerce_text_scale(value)
 
 
 class AppConfig(BaseModel):
     mbta_api_key: Optional[str] = None
+    nws_user_agent: Optional[str] = None
     server: ServerConfig = Field(default_factory=ServerConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
+    weather: WeatherConfig = Field(default_factory=WeatherConfig)
     routes: List[RouteConfig] = Field(default_factory=list)
+
+
+def _coerce_text_scale(value):
+    if value is None:
+        return 1.0
+    try:
+        scale = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    if not math.isfinite(scale):
+        return 1.0
+    return max(scale, 0.8)
 
 
 def load_config(
@@ -85,6 +105,7 @@ def load_config(
         or os.getenv("KEY", "").strip()
         or None
     )
+    nws_user_agent = os.getenv("NWS_USER_AGENT", "").strip() or None
     env_host = env_values.get("HOST") if env_values else os.getenv("HOST")
     env_port = env_values.get("PORT") if env_values else os.getenv("PORT")
 
@@ -104,11 +125,14 @@ def load_config(
             pass
 
     display_data = raw_data.get("display", {})
+    weather_data = raw_data.get("weather", {})
     routes_data = raw_data.get("routes", [])
 
     return AppConfig(
         mbta_api_key=api_key,
+        nws_user_agent=nws_user_agent,
         server=ServerConfig(**server_data),
         display=DisplayConfig(**display_data),
+        weather=WeatherConfig(**weather_data),
         routes=[RouteConfig(**r) for r in routes_data],
     )

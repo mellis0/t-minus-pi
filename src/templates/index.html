@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/css/styles.css?v={{ stylesheet_version }}">
 </head>
 <body>
-  <div class="dashboard-container" style="--primary-text-scale: {{ primary_text_scale }};">
+  <div class="dashboard-container" style="--primary-text-scale: {{ primary_text_scale }}; --weather-text-scale: {{ weather_text_scale }};">
     <!-- Header -->
     <header class="header">
       <div class="header-left">
@@ -25,6 +25,9 @@
 
     <!-- Alerts Banner Container -->
     <div id="alertsContainer" class="alerts-container"></div>
+
+    <!-- Weather Container -->
+    <div id="weatherContainer" class="weather-container"></div>
 
     <!-- Main Transit Grid -->
     <main id="transitGrid" class="transit-grid">

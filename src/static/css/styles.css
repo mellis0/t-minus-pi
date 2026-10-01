@@ -138,6 +138,77 @@ body {
   color: #ffcdd2;
 }
 
+/* Weather */
+.weather-container {
+  margin-bottom: 1.5rem;
+}
+
+.weather-container:empty {
+  display: none;
+}
+
+.weather-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background:
+    linear-gradient(135deg, rgba(54, 117, 136, 0.25), rgba(17, 23, 33, 0.95)),
+    var(--bg-card);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.weather-strip.weather-unavailable {
+  background:
+    linear-gradient(135deg, rgba(120, 70, 40, 0.2), rgba(24, 27, 34, 0.95)),
+    var(--bg-card);
+}
+
+.weather-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.weather-label {
+  font-size: calc(0.82rem * var(--weather-text-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9ed0dd;
+}
+
+.weather-primary-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.weather-temp {
+  font-size: calc(2.75rem * var(--weather-text-scale, 1));
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-condition {
+  font-size: calc(1.15rem * var(--weather-text-scale, 1));
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.weather-secondary {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: right;
+}
+
 /* Transit Grid */
 .transit-grid {
   display: grid;
@@ -382,4 +453,33 @@ body {
   margin-top: 1.5rem;
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .dashboard-container {
+    padding: 1rem;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .header-left,
+  .weather-strip,
+  .footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header-right,
+  .weather-secondary,
+  .footer-right {
+    text-align: left;
+  }
+
+  .transit-grid {
+    grid-template-columns: 1fr;
+  }
 }

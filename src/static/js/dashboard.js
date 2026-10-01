@@ -49,7 +49,7 @@ async function fetchDepartures() {
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
     const data = await res.json();
-    renderDashboard(data.cards);
+    renderDashboard(data.cards, data.weather);
 
     if (statusDot) {
       statusDot.className = "status-dot online";
@@ -72,9 +72,10 @@ async function fetchDepartures() {
   }
 }
 
-function renderDashboard(cards) {
+function renderDashboard(cards, weather) {
   const grid = document.getElementById("transitGrid");
   const alertsContainer = document.getElementById("alertsContainer");
+  const weatherContainer = document.getElementById("weatherContainer");
   if (!grid) return;
 
   // Render Alerts
@@ -99,6 +100,8 @@ function renderDashboard(cards) {
     }
   }
 
+  renderWeather(weatherContainer, weather);
+
   // Render Transit Cards
   if (!cards || cards.length === 0) {
     grid.innerHTML = '<div class="loading-placeholder">No routes configured or active.</div>';
@@ -106,6 +109,45 @@ function renderDashboard(cards) {
   }
 
   grid.innerHTML = cards.map((card) => renderCard(card)).join("");
+}
+
+function renderWeather(container, weather) {
+  if (!container) return;
+
+  if (!weather) {
+    container.innerHTML = "";
+    return;
+  }
+
+  if (!weather.available) {
+    container.innerHTML = `
+      <section class="weather-strip weather-unavailable">
+        <div class="weather-main">
+          <div class="weather-label">${escapeHtml(weather.label || "Weather")}</div>
+          <div class="weather-condition">Current weather unavailable</div>
+        </div>
+        <div class="weather-secondary">${escapeHtml(weather.error || "No weather data available.")}</div>
+      </section>
+    `;
+    return;
+  }
+
+  const temperature = weather.temperature_f !== null && weather.temperature_f !== undefined
+    ? `${escapeHtml(weather.temperature_f)}°`
+    : "--";
+  const condition = weather.condition || "Current conditions";
+
+  container.innerHTML = `
+    <section class="weather-strip weather-live">
+      <div class="weather-main">
+        <div class="weather-label">${escapeHtml(weather.label || "Weather")}</div>
+        <div class="weather-primary-row">
+          <div class="weather-temp">${temperature}</div>
+          <div class="weather-condition">${escapeHtml(condition)}</div>
+        </div>
+      </div>
+    </section>
+  `;
 }
 
 function renderCard(card) {

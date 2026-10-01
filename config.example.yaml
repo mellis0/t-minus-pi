@@ -10,6 +10,14 @@ display:
   show_alerts: true
   primary_text_scale: 1.0
 
+weather:
+  enabled: false
+  label: "Cambridge, MA"
+  latitude: 42.3736
+  longitude: -71.1097
+  refresh_seconds: 600
+  text_scale: 1.0
+
 routes:
   # Subway Example: Red Line
   - id: "red_line"

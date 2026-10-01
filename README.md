@@ -1,6 +1,6 @@
 # t-minus-pi
 
-A lightweight Python application that fetches real-time MBTA transit data and renders a clean, glanceable web dashboard optimized for a Raspberry Pi display.
+A lightweight Python application that fetches real-time MBTA transit data and optional current NWS weather data, then renders a clean, glanceable web dashboard optimized for a Raspberry Pi display.
 
 ## Dashboard
 
@@ -8,7 +8,7 @@ A lightweight Python application that fetches real-time MBTA transit data and re
 
 ## Overview
 
-t-minus-pi connects to the MBTA V3 API to retrieve real-time departure predictions, vehicle positions, and service alerts across subway, commuter rail, and bus routes. The dashboard is designed to run in fullscreen kiosk mode on a Raspberry Pi connected to an HDMI display, providing an at-a-glance departure board for daily transit tracking.
+t-minus-pi connects to the MBTA V3 API to retrieve real-time departure predictions, vehicle positions, and service alerts across subway, commuter rail, and bus routes. It can also show current weather for one U.S. location using weather.gov data from the National Weather Service. The dashboard is designed to run in fullscreen kiosk mode on a Raspberry Pi connected to an HDMI display, providing an at-a-glance departure board for daily transit tracking.
 
 Tracked stops, routes, directions, and display names are fully customizable through a simple configuration file.
 
@@ -54,7 +54,7 @@ The dashboard is intended for a small always-on display mounted where commute in
 
 ### Environment Configuration
 
-Store secrets such as your MBTA API key in a `.env` file in the root directory. Copy the sample file:
+Store secrets and API headers such as your MBTA API key in a `.env` file in the root directory. Copy the sample file:
 
 ```bash
 cp .env.example .env
@@ -66,7 +66,13 @@ Set your API key in `.env`:
 MBTA_API_KEY=your_api_key_here
 ```
 
-### Route Configuration
+If you enable the weather strip, also set an NWS user agent. weather.gov requires a `User-Agent` header that identifies your application and includes contact information:
+
+```env
+NWS_USER_AGENT=t-minus-pi (you@example.com)
+```
+
+### Route and Weather Configuration
 
 Define the routes and stops you want to display in `config.yaml`. Copy the sample configuration:
 
@@ -88,6 +94,14 @@ display:
   max_predictions_per_direction: 3
   show_alerts: true
   primary_text_scale: 1.0
+
+weather:
+  enabled: true
+  label: "Cambridge, MA"
+  latitude: 42.3736
+  longitude: -71.1097
+  refresh_seconds: 600
+  text_scale: 1.0
 
 routes:
   # Subway Example: Red Line
@@ -141,6 +155,10 @@ routes:
 ```
 
 Use `display.primary_text_scale` to enlarge the station names and ETA values without changing the header title or clock. The default is `1.0`; values below `0.8` are raised to `0.8`, and invalid values fall back to `1.0`. There is no enforced maximum, so choose large values carefully: values above `1.8` can cause unexpected layout behavior, including clipping, overflow, or content being pushed off screen.
+
+The weather strip is optional. Set `weather.enabled: true`, provide a `label`, `latitude`, and `longitude`, and the dashboard will show current conditions above the transit cards. Weather observations are cached in the backend for `weather.refresh_seconds`, which defaults to `600` seconds (10 minutes).
+
+Use `weather.text_scale` to resize the weather label, condition text, and temperature independently from the transit cards. The default is `1.0`; values below `0.8` are raised to `0.8`, and invalid values fall back to `1.0`.
 
 ### Running the Application
 
